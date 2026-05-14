@@ -1,0 +1,319 @@
+{
+  "entries": [
+    {
+      "has_quadruple_tensor": true,
+      "path": "data/y4_intersection_ring.json",
+      "present_in_uploaded_data_room": true,
+      "size_bytes": 8845,
+      "status": "MAXIMAL_PARTIAL_COMPLETION_NO_FULL_TORIC_FAN",
+      "top_level_keys": [
+        "schema_version",
+        "description",
+        "base_threefold",
+        "resolved_SU5_block",
+        "quadruple_intersection_tensor",
+        "consistency_checks",
+        "literature_anchors",
+        "open_computation_items",
+        "completion_status",
+        "audit_status"
+      ],
+      "y4_audit_status": "PARTIAL_PASS_GEOMETRY_BLOCK_FULL_TENSOR_REQUIRES_RESOLVED_FAN",
+      "y4_completion_status": "MAXIMAL_PARTIAL_COMPLETION_NO_FULL_TORIC_FAN"
+    },
+    {
+      "contains_external_markers": true,
+      "path": "data/flux_scan.csv",
+      "present_in_uploaded_data_room": true,
+      "rows_estimate": 1,
+      "size_bytes": 389
+    },
+    {
+      "path": "data/pf_basis.json",
+      "present_in_uploaded_data_room": true,
+      "size_bytes": 2045,
+      "status": "schema_complete_numerical_values_external",
+      "top_level_keys": [
+        "schema_version",
+        "description",
+        "ambient_geometry",
+        "monodromy_data",
+        "period_solutions",
+        "computation_notes",
+        "status",
+        "open_items"
+      ]
+    },
+    {
+      "path": "data/symplectic_pairing.json",
+      "present_in_uploaded_data_room": true,
+      "size_bytes": 682,
+      "status": "schema_complete_concrete_matrix_provided",
+      "top_level_keys": [
+        "schema_version",
+        "description",
+        "rank",
+        "pairing_matrix_standard_basis",
+        "convention",
+        "verification",
+        "status"
+      ]
+    },
+    {
+      "path": "data/attractor_intervals.json",
+      "present_in_uploaded_data_room": true,
+      "size_bytes": 1136,
+      "status": "schema_complete_intervals_external",
+      "top_level_keys": [
+        "schema_version",
+        "description",
+        "attractor_data",
+        "GVW_data",
+        "status",
+        "open_items"
+      ]
+    },
+    {
+      "path": "data/axio_dilaton_interval.json",
+      "present_in_uploaded_data_room": true,
+      "size_bytes": 876,
+      "status": "CANDIDATE_NUMERIC_INTERVAL_NOT_GVW_CERTIFIED",
+      "top_level_keys": [
+        "schema_version",
+        "description",
+        "tau_real_interval",
+        "tau_imag_interval",
+        "gs_interval",
+        "constraint",
+        "status",
+        "constraint_check",
+        "remaining_for_verification"
+      ]
+    },
+    {
+      "path": "data/instanton_divisors.json",
+      "present_in_uploaded_data_room": true,
+      "size_bytes": 1500,
+      "status": "schema_complete_divisor_details_external",
+      "top_level_keys": [
+        "schema_version",
+        "description",
+        "divisors",
+        "compatibility_with_intersection_ring",
+        "status",
+        "open_items"
+      ]
+    },
+    {
+      "path": "data/hidden_sector_ranks.json",
+      "present_in_uploaded_data_room": true,
+      "size_bytes": 946,
+      "status": "schema_complete_specifics_external",
+      "top_level_keys": [
+        "schema_version",
+        "description",
+        "stacks",
+        "total_tadpole_consumed",
+        "status",
+        "open_items"
+      ]
+    },
+    {
+      "path": "data/pfaffian_prefactors.json",
+      "present_in_uploaded_data_room": true,
+      "size_bytes": 1219,
+      "status": "schema_complete_intervals_external",
+      "top_level_keys": [
+        "schema_version",
+        "description",
+        "convention",
+        "instanton_prefactors",
+        "status",
+        "open_items"
+      ]
+    },
+    {
+      "path": "data/racetrack_superpotential.json",
+      "present_in_uploaded_data_room": true,
+      "size_bytes": 921,
+      "status": "schema_complete_combines_other_certificates",
+      "top_level_keys": [
+        "schema_version",
+        "description",
+        "structure",
+        "stabilization_target",
+        "racetrack_condition",
+        "status"
+      ]
+    },
+    {
+      "path": "data/string_loop_coefficients.json",
+      "present_in_uploaded_data_room": true,
+      "size_bytes": 889,
+      "status": "CANDIDATE_CONSERVATIVE_INTERVALS_NOT_STRING_AMPLITUDE_DERIVED",
+      "top_level_keys": [
+        "schema_version",
+        "description",
+        "C_KK_intervals",
+        "C_W_intervals",
+        "remainder_bound_R_K",
+        "status",
+        "remaining_for_verification"
+      ]
+    },
+    {
+      "path": "data/kahler_stabilization_certificate.json",
+      "present_in_uploaded_data_room": true,
+      "size_bytes": 1350,
+      "status": "schema_complete_certification_external",
+      "top_level_keys": [
+        "schema_version",
+        "description",
+        "F_term_system",
+        "stabilization_box_T_intervals",
+        "Hessian_positivity",
+        "Large_volume_check",
+        "Small_coupling_check",
+        "status",
+        "open_items"
+      ]
+    },
+    {
+      "path": "data/uplift_source.json",
+      "present_in_uploaded_data_room": true,
+      "size_bytes": 425,
+      "status": "schema_complete",
+      "top_level_keys": [
+        "schema_version",
+        "description",
+        "mechanism",
+        "throat_flux_integers",
+        "anti_D3_location",
+        "uplift_exponent",
+        "alternative",
+        "status"
+      ]
+    },
+    {
+      "path": "data/warp_factor_certificate.json",
+      "present_in_uploaded_data_room": true,
+      "size_bytes": 699,
+      "status": "CANDIDATE_NUMERIC_FROM_UPLIFT_SOURCE_AND_GS_WINDOW",
+      "top_level_keys": [
+        "schema_version",
+        "description",
+        "warp_factor_e_4A0",
+        "validity_check",
+        "status",
+        "hierarchy_log10_interval",
+        "remaining_for_verification"
+      ]
+    },
+    {
+      "path": "data/uplift_backreaction_certificate.json",
+      "present_in_uploaded_data_room": true,
+      "size_bytes": 540,
+      "status": "schema_complete_intervals_external",
+      "top_level_keys": [
+        "schema_version",
+        "description",
+        "tadpole_constraint",
+        "backreaction_bound",
+        "Goldstino_mode",
+        "post_uplift_critical_point",
+        "status"
+      ]
+    },
+    {
+      "path": "data/cosmological_constant_error_budget.json",
+      "present_in_uploaded_data_room": true,
+      "size_bytes": 1030,
+      "status": "NUMERIC_ERROR_BUDGET_FROM_DECLARED_COMPONENTS_CANDIDATE",
+      "top_level_keys": [
+        "schema_version",
+        "description",
+        "central_value_eV",
+        "observational_value_eV",
+        "error_sources",
+        "total_relative_error_estimate",
+        "interval_eV",
+        "interval_lower_eV",
+        "interval_upper_eV",
+        "agreement_with_observation",
+        "status",
+        "total_relative_error_estimate_quadrature"
+      ]
+    },
+    {
+      "path": "data/cp_trace_anomaly_certificate.json",
+      "present_in_uploaded_data_room": true,
+      "size_bytes": 2689,
+      "status": "REFERENCE_NUMERIC_BENCHMARK_HPC_CERTIFICATE_STILL_REQUIRED",
+      "top_level_keys": [
+        "schema_version",
+        "description",
+        "Lambda_QCD_convention",
+        "lattice_action",
+        "ensemble_metadata",
+        "continuum_extrapolation",
+        "finite_volume_correction",
+        "physical_pion_extrapolation",
+        "trace_anomaly_matching",
+        "final_c_p_interval",
+        "literature_anchors",
+        "status"
+      ]
+    },
+    {
+      "conditional": "CONDITIONAL_PASS_IMPORTED_RUBINSTEIN_SARNAK_GRH_LI",
+      "density_interval": {
+        "claim": "δ_{4;3,1} > 1/2",
+        "delta_minus_half": 0.495,
+        "delta_minus_half_in_sigma_units": "≈ 2.6σ (firm bias)",
+        "lower_bound_certified": 0.995,
+        "proven_by": "Rubinstein-Sarnak 1994 (peer-reviewed)",
+        "result": "δ_{4;3,1} > 1/2 with margin > 0.49"
+      },
+      "path": "data/prime_race_density_certificate.json",
+      "present_in_uploaded_data_room": true,
+      "size_bytes": 2974,
+      "status": "CONDITIONAL_PASS_IMPORTED_RUBINSTEIN_SARNAK_GRH_LI",
+      "top_level_keys": [
+        "schema_version",
+        "description",
+        "race",
+        "imported_analytic_hypotheses",
+        "data_inputs",
+        "explicit_formula_normalization",
+        "density_computation",
+        "certification",
+        "literature_anchors",
+        "status",
+        "audit_interpretation"
+      ]
+    },
+    {
+      "contains_conditional_language": true,
+      "path": "proofs/global_arithmetic_id_certificate.tex",
+      "present_in_uploaded_data_room": true,
+      "size_bytes": 14431,
+      "status": "proof_file_present"
+    },
+    {
+      "contains_conditional_language": false,
+      "path": "proofs/determinant_normalization.tex",
+      "present_in_uploaded_data_room": true,
+      "size_bytes": 3801,
+      "status": "proof_file_present"
+    },
+    {
+      "contains_conditional_language": false,
+      "path": "proofs/hadamard_divisor_equivalence.tex",
+      "present_in_uploaded_data_room": true,
+      "size_bytes": 3745,
+      "status": "proof_file_present"
+    }
+  ],
+  "schema": "UGCT_FULL_PAYLOAD_MANIFEST_V7_FROM_UPLOADED_DATA_ROOM",
+  "source_zip": "data_room_maximal_completion_v7.zip"
+}

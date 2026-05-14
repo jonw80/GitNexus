@@ -1,0 +1,38 @@
+{
+  "schema_version": "UGCT_ESOLE_YAU_EWX_RESOLVED_AMBIENT_CHOW_V1",
+  "status": "RESOLVED_AMBIENT_CHOW_TEMPLATE_PENDING_EXCEPTIONAL_VALUES",
+  "resolution_chamber": "Esole-Yau Ewx",
+  "basis": ["R", "H", "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "Z", "C1", "C2", "C3", "C4"],
+  "ambient_variables": [
+    "x", "y", "z", "w", "beta0", "beta2", "beta3", "beta4", "beta5",
+    "alpha_plus", "alpha_minus", "sigma_plus", "sigma_minus"
+  ],
+  "divisor_classes": {
+    "R": "projective-bundle divisor on B3=P(O+K_dP8)",
+    "H": "hyperplane class on dP8",
+    "E1..E8": "exceptional classes on dP8",
+    "Z": "zero-section divisor",
+    "C1..C4": "SU(5)/A4 resolution divisors in the Esole-Yau Ewx chamber"
+  },
+  "sr_ideal_generators": [],
+  "linear_equivalence_generators": [],
+  "proper_transform_class": null,
+  "hypersurface_class": null,
+  "integration_rules": {
+    "base_ring": "dP8 with H^2=1, H.E_i=0, E_i.E_j=-delta_ij",
+    "B3_relation": "R(R-K_dP8)=0",
+    "zero_section_relation": "Z^2=-c1(B3)Z",
+    "cartan_pair_rule": "C_i C_j D_a D_b = -A_ij int_B3 R D_a D_b"
+  },
+  "exceptional_intersection_values": {},
+  "required_completion": {
+    "status_required_for_compute": "RESOLVED_AMBIENT_CHOW_DATA_VERIFIED",
+    "must_supply": [
+      "full resolved ambient SR ideal generators",
+      "full resolved ambient linear equivalence generators",
+      "proper-transform hypersurface/complete-intersection class",
+      "integration functional or exceptional_intersection_values for all 1509 required monomials"
+    ]
+  },
+  "notes": "This file is now present at the exact workflow input path. It is not marked verified until the full Esole-Yau Ewx resolved Chow reduction or an exact exported exceptional_intersection_values table is supplied."
+}

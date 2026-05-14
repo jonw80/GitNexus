@@ -1,0 +1,29 @@
+name: UGCT Sage Y4 Chow Tensor Export
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'ugct_sage_y4/**'
+      - '.github/workflows/ugct-sage-y4.yml'
+
+jobs:
+  sage-y4:
+    runs-on: ubuntu-latest
+    container:
+      image: sagemath/sagemath:latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Show Sage version
+        run: sage --version
+      - name: Run UGCT Y4 Chow tensor export
+        working-directory: ugct_sage_y4
+        run: sage -python run_chow_tensor.sage
+      - name: Upload tensor reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: ugct-y4-sage-tensor-export
+          path: |
+            ugct_sage_y4/data/*.json
+            ugct_sage_y4/reports/*.json

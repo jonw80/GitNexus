@@ -1,18 +1,27 @@
 {
   "schema_version": "UGCT_ESOLE_YAU_EWX_RESOLVED_AMBIENT_CHOW_V1",
-  "status": "RESOLVED_AMBIENT_CHOW_TEMPLATE_PENDING_EXCEPTIONAL_VALUES",
+  "status": "RESOLVED_AMBIENT_CHOW_TEMPLATE_PENDING_EXACT_RELATIONS",
   "resolution_chamber": "Esole-Yau Ewx",
   "basis": ["R", "H", "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "Z", "C1", "C2", "C3", "C4"],
   "ambient_variables": [
-    "x", "y", "z", "w", "beta0", "beta2", "beta3", "beta4", "beta5",
-    "alpha_plus", "alpha_minus", "sigma_plus", "sigma_minus"
+    "R", "H", "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "Z", "C1", "C2", "C3", "C4"
   ],
   "divisor_classes": {
     "R": "projective-bundle divisor on B3=P(O+K_dP8)",
     "H": "hyperplane class on dP8",
-    "E1..E8": "exceptional classes on dP8",
+    "E1": "dP8 exceptional class E1",
+    "E2": "dP8 exceptional class E2",
+    "E3": "dP8 exceptional class E3",
+    "E4": "dP8 exceptional class E4",
+    "E5": "dP8 exceptional class E5",
+    "E6": "dP8 exceptional class E6",
+    "E7": "dP8 exceptional class E7",
+    "E8": "dP8 exceptional class E8",
     "Z": "zero-section divisor",
-    "C1..C4": "SU(5)/A4 resolution divisors in the Esole-Yau Ewx chamber"
+    "C1": "SU(5)/A4 resolution divisor C1 in Esole-Yau Ewx chamber",
+    "C2": "SU(5)/A4 resolution divisor C2 in Esole-Yau Ewx chamber",
+    "C3": "SU(5)/A4 resolution divisor C3 in Esole-Yau Ewx chamber",
+    "C4": "SU(5)/A4 resolution divisor C4 in Esole-Yau Ewx chamber"
   },
   "sr_ideal_generators": [],
   "linear_equivalence_generators": [],
@@ -24,15 +33,42 @@
     "zero_section_relation": "Z^2=-c1(B3)Z",
     "cartan_pair_rule": "C_i C_j D_a D_b = -A_ij int_B3 R D_a D_b"
   },
+  "sage_polynomial_mode": {
+    "description": "Sage-parsable quotient-ring mode. Fill variables, quotient_ideal_generators, divisor_lifts, and integration_functional.top_monomial_values with the exact Esole-Yau Ewx resolved ambient Chow presentation. Set status to RESOLVED_AMBIENT_CHOW_DATA_VERIFIED only when complete.",
+    "variables": ["R", "H", "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "Z", "C1", "C2", "C3", "C4"],
+    "quotient_ideal_generators": [],
+    "divisor_lifts": {
+      "R": "R",
+      "H": "H",
+      "E1": "E1",
+      "E2": "E2",
+      "E3": "E3",
+      "E4": "E4",
+      "E5": "E5",
+      "E6": "E6",
+      "E7": "E7",
+      "E8": "E8",
+      "Z": "Z",
+      "C1": "C1",
+      "C2": "C2",
+      "C3": "C3",
+      "C4": "C4"
+    },
+    "include_hypersurface_as_relation": false,
+    "integration_functional": {
+      "description": "Map normal-form top-degree monomials to exact rational integrals. Keys use Sage monomial syntax like R*H*H*Z or C1*C2*C3*C4 after normal-form reduction.",
+      "top_monomial_values": {}
+    }
+  },
   "exceptional_intersection_values": {},
   "required_completion": {
     "status_required_for_compute": "RESOLVED_AMBIENT_CHOW_DATA_VERIFIED",
     "must_supply": [
-      "full resolved ambient SR ideal generators",
-      "full resolved ambient linear equivalence generators",
+      "full resolved ambient SR ideal generators in sage_polynomial_mode.quotient_ideal_generators or sr_ideal_generators",
+      "full resolved ambient linear-equivalence generators in sage_polynomial_mode.quotient_ideal_generators or linear_equivalence_generators",
       "proper-transform hypersurface/complete-intersection class",
-      "integration functional or exceptional_intersection_values for all 1509 required monomials"
+      "integration_functional.top_monomial_values sufficient for all normal forms or exceptional_intersection_values for all 1509 required monomials"
     ]
   },
-  "notes": "This file is now present at the exact workflow input path. It is not marked verified until the full Esole-Yau Ewx resolved Chow reduction or an exact exported exceptional_intersection_values table is supplied."
+  "notes": "The package now contains the Sage-parsable interface. Exact Esole-Yau Ewx SR/linear/proper-transform/integration data still need to be supplied before this can be marked RESOLVED_AMBIENT_CHOW_DATA_VERIFIED."
 }

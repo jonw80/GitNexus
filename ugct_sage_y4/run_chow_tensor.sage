@@ -1,21 +1,36 @@
 # UGCT Y4 Chow-ring tensor export
 # Runs under SageMath.
 #
-# This script exports two files:
+# This script exports:
 #   data/y4_intersection_ring_supported_sage_export.json
 #   data/y4_intersection_ring_full.json
+#   reports/missing_exceptional_rules.csv
+#   reports/exceptional_rules_coverage.json
 #
-# The first is the supported-sector certificate. The second is the validator
-# target. It is promoted to FULL_CHAMBER_SPECIFIC_TENSOR_VERIFIED only if the
-# current computation reduces every degree-four multiset. If any exceptional
-# chamber-specific monomials remain unsupported, the target file is still
-# populated, but it is marked pending rather than falsely verified.
+# It computes the supported vertical/Cartan-pair sector directly and then loads
+# chamber-specific Esole-Yau exceptional-sector reductions from:
+#   data/esole_yau_exceptional_reduction_rules.json
+#
+# The full tensor is promoted to FULL_CHAMBER_SPECIFIC_TENSOR_VERIFIED only when
+# every degree-four multiset is reduced and the full rule file declares the
+# chamber-specific exceptional sector verified.
 
-import json, itertools, os
+import csv
+import json
+import itertools
+import os
 from fractions import Fraction
+from pathlib import Path
 
 base_basis = ["R", "H"] + [f"E{i}" for i in range(1, 9)]
 basis = base_basis + ["Z"] + [f"C{i}" for i in range(1, 5)]
+order = {name: i for i, name in enumerate(basis)}
+
+DATA = Path("data")
+REPORTS = Path("reports")
+DATA.mkdir(exist_ok=True)
+REPORTS.mkdir(exist_ok=True)
+RULE_FILE = DATA / "esole_yau_exceptional_reduction_rules.json"
 
 # K_dP8 = -3H + sum E_i
 K = {"H": Fraction(-3)}
@@ -27,8 +42,51 @@ c1B = {"R": Fraction(2), "H": Fraction(6)}
 for i in range(1, 9):
     c1B[f"E{i}"] = Fraction(-2)
 
+def canonical_key(items):
+    return ",".join(sorted(items, key=lambda x: order[x]))
+
+def parse_fraction(value):
+    if isinstance(value, int):
+        return Fraction(value)
+    if isinstance(value, float):
+        return Fraction(str(value))
+    if isinstance(value, str):
+        return Fraction(value)
+    raise TypeError("Unsupported fraction value: %r" % (value,))
+
 def frac_json(x):
     return int(x) if x.denominator == 1 else str(x)
+
+def load_exceptional_rules():
+    if not RULE_FILE.exists():
+        return {}, {
+            "status": "NO_EXCEPTIONAL_RULE_FILE_PRESENT",
+            "rule_file": str(RULE_FILE),
+            "rules_loaded": 0,
+            "declares_exceptional_sector_verified": False
+        }
+    obj = json.loads(RULE_FILE.read_text())
+    raw_rules = obj.get("rules", {})
+    rules = {}
+    for key, value in raw_rules.items():
+        parts = [p.strip() for p in key.split(",") if p.strip()]
+        if len(parts) != 4:
+            raise ValueError("Rule key must have four divisors: %s" % key)
+        for p in parts:
+            if p not in order:
+                raise ValueError("Unknown divisor %s in rule %s" % (p, key))
+        rules[canonical_key(parts)] = parse_fraction(value)
+    meta = {
+        "status": obj.get("status", "RULE_FILE_PRESENT"),
+        "rule_file": str(RULE_FILE),
+        "rules_loaded": len(rules),
+        "declares_exceptional_sector_verified": obj.get("status") == "EXCEPTIONAL_SECTOR_VERIFIED",
+        "source": obj.get("source", "unspecified"),
+        "resolution_chamber": obj.get("resolution_chamber", "unspecified")
+    }
+    return rules, meta
+
+exceptional_rules, exceptional_meta = load_exceptional_rules()
 
 def surf_pair(a, b):
     if a == "H" and b == "H":
@@ -83,8 +141,6 @@ def multiply_linear(poly, lin):
     return {k: v for k, v in out.items() if v}
 
 def z_vertical_intersection(mon):
-    # Reduce Z^n using Z^2=-c1(B3)Z. Integral over Y4 of Z*D1*D2*D3
-    # is integral over B3 of D1*D2*D3.
     zc = mon.count("Z")
     base = [x for x in mon if x != "Z"]
     if zc == 0:
@@ -113,8 +169,13 @@ def cartan_pair_intersection(mon):
         return None
     i = int(cart[0][1:]) - 1
     j = int(cart[1][1:]) - 1
-    # C_i C_j D_a D_b = -A_ij * int_B S D_a D_b, S=R.
     return Fraction(-A4[i][j]) * b3_triple("R", non[0], non[1])
+
+def exceptional_rule_intersection(mon):
+    key = canonical_key(mon)
+    if key in exceptional_rules:
+        return exceptional_rules[key]
+    return None
 
 def reduce_degree4_multiset(mon):
     cart_count = sum(1 for x in mon if x.startswith("C"))
@@ -124,7 +185,10 @@ def reduce_degree4_multiset(mon):
         val = cartan_pair_intersection(mon)
         if val is not None:
             return val, "A4_cartan_pair_pushforward"
-    return None, "requires_full_Esole_Yau_exceptional_SR_linear_equivalence_reduction"
+    val = exceptional_rule_intersection(mon)
+    if val is not None:
+        return val, "Esole_Yau_exceptional_rule_file"
+    return None, "requires_Esole_Yau_exceptional_rule_value"
 
 nonzero = {}
 zero = 0
@@ -133,7 +197,7 @@ rule_counts = {}
 for mon in itertools.combinations_with_replacement(basis, 4):
     val, rule = reduce_degree4_multiset(mon)
     rule_counts[rule] = rule_counts.get(rule, 0) + 1
-    key = ",".join(mon)
+    key = canonical_key(mon)
     if val is None:
         unsupported.append(key)
     elif val:
@@ -142,17 +206,38 @@ for mon in itertools.combinations_with_replacement(basis, 4):
         zero += 1
 
 total_multisets = len(list(itertools.combinations_with_replacement(basis, 4)))
-full_verified = len(unsupported) == 0
+exceptional_sector_verified = exceptional_meta.get("declares_exceptional_sector_verified", False)
+full_verified = len(unsupported) == 0 and exceptional_sector_verified
 status = "FULL_CHAMBER_SPECIFIC_TENSOR_VERIFIED" if full_verified else "FULL_CHAMBER_SPECIFIC_TENSOR_PENDING_EXCEPTIONAL_SECTOR"
 
+# Write missing rule ledger.
+with open(REPORTS / "missing_exceptional_rules.csv", "w", newline="") as f:
+    w = csv.DictWriter(f, fieldnames=["monomial", "required_value", "rule_file"])
+    w.writeheader()
+    for key in unsupported:
+        w.writerow({"monomial": key, "required_value": "integer_or_rational", "rule_file": str(RULE_FILE)})
+
+coverage = {
+    "rule_file": str(RULE_FILE),
+    "rule_file_status": exceptional_meta.get("status"),
+    "rules_loaded": exceptional_meta.get("rules_loaded", 0),
+    "declares_exceptional_sector_verified": exceptional_sector_verified,
+    "unsupported_multisets_after_rules": len(unsupported),
+    "full_chamber_specific_tensor_verified": full_verified,
+    "rule_counts": rule_counts
+}
+with open(REPORTS / "exceptional_rules_coverage.json", "w") as f:
+    json.dump(coverage, f, indent=2, sort_keys=True)
+
 supported_report = {
-    "status": "SAGE_SUPPORTED_DEGREE4_TENSOR_EXPORTED" if full_verified else "SAGE_SUPPORTED_DEGREE4_TENSOR_EXPORTED__FULL_ESOLE_YAU_SELF_EXCEPTIONAL_BLOCK_UNSUPPORTED",
+    "status": "SAGE_DEGREE4_TENSOR_EXPORTED" if full_verified else "SAGE_SUPPORTED_DEGREE4_TENSOR_EXPORTED__FULL_ESOLE_YAU_SELF_EXCEPTIONAL_BLOCK_UNSUPPORTED",
     "basis": basis,
     "basis_size": len(basis),
     "total_symmetric_multisets_degree4": total_multisets,
     "nonzero_exported": len(nonzero),
     "zero_multisets": zero,
     "unsupported_multisets": len(unsupported),
+    "exceptional_rule_file": exceptional_meta,
     "rule_counts": rule_counts,
     "checks": {
         "K_dP8_square": str(K_square()),
@@ -163,7 +248,7 @@ supported_report = {
         "full_chamber_specific_tensor_verified": full_verified
     },
     "quadruple_intersections_supported": nonzero,
-    "unsupported_reason": "Only monomials requiring full Esole-Yau resolved ambient SR ideal, linear-equivalence ideal, proper-transform class, and exceptional pushforward remain unsupported.",
+    "unsupported_reason": "Missing explicit Esole-Yau exceptional-sector values in data/esole_yau_exceptional_reduction_rules.json.",
     "unsupported_multisets_sample": unsupported[:200]
 }
 
@@ -174,6 +259,7 @@ full_report = {
     "resolution_chamber": "Esole-Yau Ewx",
     "source_model": "B3 = P(O + K_dP8) over dP8; split SU(5) Tate model",
     "computed_environment": "GitHub Actions SageMath",
+    "exceptional_rule_file": exceptional_meta,
     "quadruple_intersections": nonzero,
     "checks": {
         "A4_cartan": True,
@@ -184,26 +270,23 @@ full_report = {
         "nonzero_exported": len(nonzero),
         "zero_multisets": zero,
         "unsupported_multisets": len(unsupported),
-        "all_degree4_multisets_reduced": full_verified,
+        "all_degree4_multisets_reduced": len(unsupported) == 0,
+        "exceptional_sector_verified": exceptional_sector_verified,
         "full_chamber_specific_tensor_verified": full_verified
     },
     "unsupported_multisets": unsupported,
     "remaining_computation_if_not_verified": [] if full_verified else [
-        "Insert full Esole-Yau Ewx resolved ambient SR ideal generators.",
-        "Insert full divisor linear-equivalence ideal after blowups.",
-        "Insert proper-transform hypersurface class in the resolved ambient space.",
-        "Add exceptional pushforward/reduction rules for monomials with >=3 Cartan/exceptional factors and Z-Cartan mixing.",
-        "Then rerun this script until unsupported_multisets=0."
+        "Fill data/esole_yau_exceptional_reduction_rules.json with every monomial listed in reports/missing_exceptional_rules.csv.",
+        "Set rule-file status to EXCEPTIONAL_SECTOR_VERIFIED only after the values are obtained from the resolved ambient SR/linear-equivalence reduction.",
+        "Rerun until unsupported_multisets=0."
     ]
 }
 
-os.makedirs("reports", exist_ok=True)
-os.makedirs("data", exist_ok=True)
-with open("data/y4_intersection_ring_supported_sage_export.json", "w") as f:
+with open(DATA / "y4_intersection_ring_supported_sage_export.json", "w") as f:
     json.dump(supported_report, f, indent=2, sort_keys=True)
-with open("data/y4_intersection_ring_full.json", "w") as f:
+with open(DATA / "y4_intersection_ring_full.json", "w") as f:
     json.dump(full_report, f, indent=2, sort_keys=True)
-with open("reports/sage_run_summary.json", "w") as f:
+with open(REPORTS / "sage_run_summary.json", "w") as f:
     json.dump({
         "status": supported_report["status"],
         "full_tensor_status": status,
@@ -214,6 +297,7 @@ with open("reports/sage_run_summary.json", "w") as f:
         "unsupported_multisets": len(unsupported),
         "full_chamber_specific_tensor_verified": full_verified,
         "rule_counts": rule_counts,
+        "exceptional_rule_file": exceptional_meta,
         "checks": supported_report["checks"]
     }, f, indent=2, sort_keys=True)
 print(json.dumps({
@@ -221,5 +305,6 @@ print(json.dumps({
     "full_tensor_status": status,
     "nonzero_exported": len(nonzero),
     "unsupported_multisets": len(unsupported),
+    "exceptional_rules_loaded": exceptional_meta.get("rules_loaded", 0),
     "full_chamber_specific_tensor_verified": full_verified
 }, indent=2, sort_keys=True))

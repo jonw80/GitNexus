@@ -1,1 +1,1 @@
-Trigger Sage Y4 Chow tensor export workflow.
+Trigger Sage Y4 Chow tensor export workflow with strict full-payload validator.

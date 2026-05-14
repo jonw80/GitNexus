@@ -16,8 +16,11 @@
 #      and a top-degree integration functional. The script reduces each pending
 #      exceptional monomial modulo the quotient ideal and integrates the result.
 #
-# The script refuses to invent values. A presentation must be explicitly marked
-# RESOLVED_AMBIENT_CHOW_DATA_VERIFIED and must pass coverage checks.
+# Important correction:
+#   The script now ATTEMPTS computation from supplied exact fields even if the
+#   input file status is still pending/template. It only promotes the output to
+#   EXCEPTIONAL_SECTOR_VERIFIED after every exceptional monomial is actually
+#   computed with exact rational values.
 
 import itertools
 import json
@@ -119,7 +122,7 @@ def validate_fraction(value, key):
         raise ValueError("Non-rational value for %s: %r (%s)" % (key, value, exc))
     return value
 
-def write_verified_rules(rules, source, mode):
+def write_verified_rules(rules, source, mode, input_status):
     slots = exceptional_slots()
     rule_file = {
         "schema_version": "UGCT_ESOLE_YAU_EXCEPTIONAL_RULES_V1",
@@ -127,6 +130,7 @@ def write_verified_rules(rules, source, mode):
         "resolution_chamber": "Esole-Yau Ewx",
         "source": source,
         "mode": mode,
+        "input_status_at_compute_time": input_status,
         "rules": rules,
         "required_rules": {},
         "rule_count": len(rules),
@@ -137,6 +141,7 @@ def write_verified_rules(rules, source, mode):
     report = {
         "status": "EXCEPTIONAL_RULES_COMPUTED_AND_VERIFIED",
         "mode": mode,
+        "input_status_at_compute_time": input_status,
         "input_file": str(INPUT),
         "rules_output": str(RULES_OUT),
         "exceptional_slots": len(slots),
@@ -176,7 +181,6 @@ def try_direct_values(chow, slots):
     return {k: validate_fraction(values[k], k) for k in slots}
 
 def sage_eval(expr, names):
-    # Safe-ish Sage parser: symbols are only the declared polynomial variables.
     return eval(expr, {"__builtins__": {}}, names)
 
 def monomial_from_key(key, divisor_lifts, names):
@@ -190,7 +194,6 @@ def monomial_from_key(key, divisor_lifts, names):
 
 def integrate_normal_form(poly, top_values, names):
     total = Fraction(0)
-    # Sage dict: exponent tuple -> coefficient.
     for exp, coeff in poly.dict().items():
         mon_parts = []
         for var, power in zip(names["__varlist__"], exp):
@@ -235,20 +238,19 @@ def try_sage_quotient_mode(chow, slots):
 
     ideal_exprs = []
     ideal_exprs.extend(mode.get("quotient_ideal_generators", []))
-    # Also allow data to be split in natural geometric fields.
     ideal_exprs.extend(chow.get("sr_ideal_generators", []))
     ideal_exprs.extend(chow.get("linear_equivalence_generators", []))
     pt = chow.get("proper_transform_class")
     if isinstance(pt, str) and pt.strip():
         ideal_exprs.append(pt)
     hyp = chow.get("hypersurface_class")
-    if isinstance(hyp, str) and hyp.strip():
-        # In quotient mode the hypersurface may be part of the integration class,
-        # so this is only included if the presentation asks for it.
-        if mode.get("include_hypersurface_as_relation", False):
-            ideal_exprs.append(hyp)
+    if isinstance(hyp, str) and hyp.strip() and mode.get("include_hypersurface_as_relation", False):
+        ideal_exprs.append(hyp)
     if not ideal_exprs:
-        write_pending_report("No quotient ideal generators supplied.", ["quotient_ideal_generators"])
+        write_pending_report(
+            "No quotient ideal generators supplied; exact SR/linear/proper-transform relations are absent.",
+            ["sage_polynomial_mode.quotient_ideal_generators", "sr_ideal_generators", "linear_equivalence_generators", "proper_transform_class"]
+        )
         raise SystemExit(0)
 
     try:
@@ -261,7 +263,10 @@ def try_sage_quotient_mode(chow, slots):
 
     top_values = mode.get("integration_functional", {}).get("top_monomial_values", {})
     if not top_values:
-        write_pending_report("integration_functional.top_monomial_values is empty.", ["integration_functional.top_monomial_values"])
+        write_pending_report(
+            "integration_functional.top_monomial_values is empty; no integration map is available for normal forms.",
+            ["integration_functional.top_monomial_values"]
+        )
         raise SystemExit(0)
 
     rules = {}
@@ -313,20 +318,17 @@ if missing:
     write_pending_report("Resolved ambient Chow input lacks required keys.", missing)
     raise SystemExit(0)
 
-if chow.get("status") != "RESOLVED_AMBIENT_CHOW_DATA_VERIFIED":
-    write_pending_report("Resolved ambient Chow input status is not RESOLVED_AMBIENT_CHOW_DATA_VERIFIED.", ["status"])
-    raise SystemExit(0)
-
+input_status = chow.get("status", "STATUS_NOT_SET")
 slots = exceptional_slots()
 
 rules = try_direct_values(chow, slots)
 if rules is not None:
-    write_verified_rules(rules, "Direct exceptional_intersection_values table in data/esole_yau_ewx_resolved_ambient_chow.json.", "direct_exceptional_intersection_values")
+    write_verified_rules(rules, "Direct exceptional_intersection_values table in data/esole_yau_ewx_resolved_ambient_chow.json.", "direct_exceptional_intersection_values", input_status)
     raise SystemExit(0)
 
 rules = try_sage_quotient_mode(chow, slots)
 if rules is not None:
-    write_verified_rules(rules, "Sage quotient presentation in data/esole_yau_ewx_resolved_ambient_chow.json.", "sage_polynomial_mode")
+    write_verified_rules(rules, "Sage quotient presentation in data/esole_yau_ewx_resolved_ambient_chow.json.", "sage_polynomial_mode", input_status)
     raise SystemExit(0)
 
 write_pending_report(

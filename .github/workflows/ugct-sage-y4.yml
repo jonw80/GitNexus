@@ -20,7 +20,10 @@ jobs:
       - name: Run UGCT Y4 Chow tensor export
         working-directory: ugct_sage_y4
         run: sage -python run_chow_tensor.sage
-      - name: Upload tensor reports
+      - name: Run strict full-payload validator
+        working-directory: ugct_sage_y4
+        run: python3 validate_full_payload.py
+      - name: Upload tensor and full-payload reports
         uses: actions/upload-artifact@v4
         with:
           name: ugct-y4-sage-tensor-export

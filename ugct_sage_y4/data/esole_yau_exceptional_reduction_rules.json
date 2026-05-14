@@ -1,0 +1,8 @@
+{
+  "schema_version": "UGCT_ESOLE_YAU_EXCEPTIONAL_RULES_V1",
+  "status": "EXCEPTIONAL_SECTOR_RULES_TEMPLATE_PENDING_VALUES",
+  "resolution_chamber": "Esole-Yau Ewx",
+  "source": "Populate from the full resolved ambient SR ideal, divisor linear-equivalence ideal, proper-transform class, and exceptional pushforward reduction.",
+  "instructions": "Keys are canonical comma-separated degree-four monomials in the basis [R,H,E1,...,E8,Z,C1,C2,C3,C4]. Values must be exact integers or rational strings. After every monomial in reports/missing_exceptional_rules.csv is filled and independently checked, set status to EXCEPTIONAL_SECTOR_VERIFIED.",
+  "rules": {}
+}

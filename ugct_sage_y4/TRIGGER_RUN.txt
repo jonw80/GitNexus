@@ -1,1 +1,3 @@
 Trigger Sage Y4 Chow tensor export workflow with strict full-payload validator.
+Manual workflow page supplied by user: https://github.com/jonw80/GitNexus/actions/workflows/ugct-sage-y4.yml
+Trigger marker: 2026-05-14T13:00:00-04:00

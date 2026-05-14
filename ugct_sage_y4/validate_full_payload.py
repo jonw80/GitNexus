@@ -1,13 +1,20 @@
 #!/usr/bin/env python3
 """Strict UGCT full-payload validator.
 
-Corrected mode: if data/full_payload_manifest_v7.json is present, validate the
-uploaded data-room manifest instead of treating the repo's transient data/
-folder as empty. This distinguishes:
-  (1) missing payload files, from
-  (2) present but not certificate-grade payload files.
+This validator fixes the repo/path ambiguity and produces an actionable blocker
+ledger. It audits data/full_payload_manifest_v7.json when present and separates:
+  * MISSING: absent files
+  * CERTIFICATE_GRADE: supplied and accepted at schema/certificate level
+  * CONDITIONAL: supplied but dependent on imported hypotheses
+  * BLOCKER_GRADE: present, but candidate/external/partial rather than verified
+
+The script never promotes a candidate file to FULL_PAYLOAD_VERIFIED by changing
+labels alone. It records exactly what object must replace each blocker.
 """
-import json, re, hashlib
+import csv
+import json
+import re
+import hashlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -18,48 +25,134 @@ MANIFEST = ROOT / "data" / "full_payload_manifest_v7.json"
 CERTIFIED_OK = re.compile(r"FULL|VERIFIED|concrete_matrix_provided|schema_complete$|proof_file_present", re.I)
 BLOCKER = re.compile(r"PARTIAL|CANDIDATE|EXTERNAL|HPC|STILL_REQUIRED|NO_FULL_TORIC_FAN|NOT_GVW_CERTIFIED|schema_complete_.*external|conditional", re.I)
 
+REMEDIATION = {
+    "data/y4_intersection_ring.json": {
+        "authority": "Sage/Macaulay2/OSCAR/F-theory Chow-ring reduction",
+        "needed": "Replace partial tensor with full chamber-specific resolved Tate Y4 degree-four tensor including SR ideal, linear equivalences, proper transform, all nonzero quadruple intersections, A4 Cartan check, chi(Y4)=1056, tadpole=44.",
+        "acceptance": "status=FULL_CHAMBER_SPECIFIC_TENSOR_VERIFIED and y4_full_verified=true"
+    },
+    "data/pf_basis.json": {
+        "authority": "Picard-Fuchs/period solver with interval arithmetic",
+        "needed": "Numerical/interval period basis values, monodromy data, and basis normalization sufficient to compute Pi(z*) with rigorous enclosures.",
+        "acceptance": "status=VERIFIED_INTERVAL_PERIOD_BASIS"
+    },
+    "data/attractor_intervals.json": {
+        "authority": "interval arithmetic GVW attractor solver",
+        "needed": "Interval box for z*, tau*, F-term residual enclosures, Krawczyk/Newton certificate for D_a W=0.",
+        "acceptance": "status=VERIFIED_ATTRACTOR_INTERVALS"
+    },
+    "data/axio_dilaton_interval.json": {
+        "authority": "flux-attractor interval solve",
+        "needed": "tau interval derived from flux equations rather than candidate perturbative window; include g_s interval as reciprocal of Im tau.",
+        "acceptance": "status=VERIFIED_GVW_AXIO_DILATON_INTERVAL"
+    },
+    "data/instanton_divisors.json": {
+        "authority": "resolved Y4 divisor cohomology / instanton zero-mode computation",
+        "needed": "Rigid divisor list with h^{0,p}, arithmetic genus, Freed-Witten check, charged-zero-mode absence, flux restrictions.",
+        "acceptance": "status=VERIFIED_INSTANTON_DIVISORS"
+    },
+    "data/hidden_sector_ranks.json": {
+        "authority": "F-theory hidden-sector/tadpole/anomaly scan",
+        "needed": "Specific hidden-sector stacks, ranks N_i, tadpole contributions, anomaly/Freed-Witten compatibility.",
+        "acceptance": "status=VERIFIED_HIDDEN_SECTOR_RANKS"
+    },
+    "data/pfaffian_prefactors.json": {
+        "authority": "one-loop/Pfaffian determinant computation or symmetry proof",
+        "needed": "Intervals for A_i with determinant operator, regularization, basis, hashes, and charged-zero-mode exclusions.",
+        "acceptance": "status=VERIFIED_PFAFFIAN_PREFACTORS"
+    },
+    "data/racetrack_superpotential.json": {
+        "authority": "stabilization payload assembly",
+        "needed": "Concrete W0, A_i, N_i, divisor actions T_i assembled into W(T)=W0+sum A_i exp(-2pi T_i/N_i).",
+        "acceptance": "status=VERIFIED_RACETRACK_SUPERPOTENTIAL"
+    },
+    "data/string_loop_coefficients.json": {
+        "authority": "compactification-specific string-loop amplitude calculation",
+        "needed": "C_KK and C_W intervals derived for the selected brane/orientifold/F-theory limit, not conservative placeholders.",
+        "acceptance": "status=VERIFIED_STRING_LOOP_COEFFICIENTS"
+    },
+    "data/kahler_stabilization_certificate.json": {
+        "authority": "interval Newton/Krawczyk solver",
+        "needed": "D_T W=0 interval certificate, Kähler cone inclusion, Hessian positivity, large-volume and small-coupling bounds.",
+        "acceptance": "status=VERIFIED_KAHLER_STABILIZATION_CERTIFICATE"
+    },
+    "data/warp_factor_certificate.json": {
+        "authority": "uplift/throat flux computation",
+        "needed": "Warp factor interval from declared throat fluxes and g_s, with tadpole and hierarchy checks tied to the verified compactification.",
+        "acceptance": "status=VERIFIED_WARP_FACTOR_CERTIFICATE"
+    },
+    "data/uplift_backreaction_certificate.json": {
+        "authority": "uplift/backreaction stability analysis",
+        "needed": "Backreaction bound, post-uplift critical point, positive Hessian, and validated metastable dS vacuum.",
+        "acceptance": "status=VERIFIED_UPLIFT_BACKREACTION_CERTIFICATE"
+    },
+    "data/cosmological_constant_error_budget.json": {
+        "authority": "interval propagation from verified stabilization/uplift payload",
+        "needed": "rho_Lambda interval from verified V_total with alpha', loop, nonperturbative, backreaction, and truncation errors.",
+        "acceptance": "status=VERIFIED_COSMOLOGICAL_CONSTANT_ERROR_BUDGET"
+    },
+    "data/cp_trace_anomaly_certificate.json": {
+        "authority": "lattice-QCD/HPC or exactly matching published lattice dataset",
+        "needed": "Lambda_QCD scheme, ensembles, action, scale setting, continuum/finite-volume/physical-point extrapolation, trace-anomaly matching, c_p interval.",
+        "acceptance": "status=VERIFIED_LATTICE_QCD_CP_CERTIFICATE"
+    },
+    "proofs/global_arithmetic_id_certificate.tex": {
+        "authority": "theorem-level analytic-number-theory/operator proof",
+        "needed": "Unconditional proof of F_infty=c Xi: entire order 1, identical divisor, normalization, Hadamard factorization; no conditional language.",
+        "acceptance": "status=UNCONDITIONAL_GLOBAL_ARITHMETIC_ID_PROOF"
+    },
+    "data/prime_race_density_certificate.json": {
+        "authority": "explicit-formula/Rubinstein-Sarnak or replacement theorem",
+        "needed": "Density interval delta_{4;3,1} with stated hypotheses; unconditional only if global determinant bridge replaces GRH/LI assumptions.",
+        "acceptance": "status=VERIFIED_CONDITIONAL_DENSITY or UNCONDITIONAL_DENSITY_TRANSFER"
+    },
+}
+
+def classify_entry(e):
+    status = str(e.get("status") or e.get("y4_completion_status") or "")
+    path = e.get("path", "")
+    record = {"path": path, "status": status, "size_bytes": e.get("size_bytes")}
+    if not e.get("present_in_uploaded_data_room"):
+        return "missing", record
+    if path == "data/prime_race_density_certificate.json" or "CONDITIONAL" in status.upper():
+        return "conditional", record
+    if BLOCKER.search(status) or e.get("contains_external_markers"):
+        return "blocker", record
+    if CERTIFIED_OK.search(status):
+        return "certificate_grade", record
+    return "blocker", record | {"reason": "unrecognized_status"}
+
 if MANIFEST.exists():
     manifest = json.loads(MANIFEST.read_text())
     entries = manifest.get("entries", [])
-    missing = [e for e in entries if not e.get("present_in_uploaded_data_room")]
-    certificate_grade = []
-    conditional = []
-    blockers = []
+    buckets = {"missing": [], "certificate_grade": [], "conditional": [], "blockers": []}
     for e in entries:
-        status = str(e.get("status") or e.get("y4_completion_status") or "")
-        path = e.get("path", "")
-        record = {"path": path, "status": status, "size_bytes": e.get("size_bytes")}
-        if path == "data/prime_race_density_certificate.json" or "CONDITIONAL" in status.upper():
-            conditional.append(record)
-        elif BLOCKER.search(status) or e.get("contains_external_markers"):
-            blockers.append(record)
-        elif CERTIFIED_OK.search(status):
-            certificate_grade.append(record)
-        else:
-            blockers.append(record | {"reason": "unrecognized_status"})
+        cls, record = classify_entry(e)
+        if cls == "blocker":
+            record.update(REMEDIATION.get(record.get("path"), {
+                "authority": "unspecified",
+                "needed": "Provide certificate-grade replacement data.",
+                "acceptance": "status must be verified and no blocker markers remain."
+            }))
+        buckets["blockers" if cls == "blocker" else cls].append(record)
 
-    # Y4 special check: the data room has a tensor-like object, but its own
-    # status says it is partial without full toric fan / resolved chamber.
     y4_entries = [e for e in entries if e.get("path") == "data/y4_intersection_ring.json"]
     y4_status = y4_entries[0].get("y4_completion_status") if y4_entries else "MISSING"
     y4_full_verified = y4_status == "FULL_CHAMBER_SPECIFIC_TENSOR_VERIFIED"
 
-    status = "FULL_PAYLOAD_VERIFIED" if not missing and not blockers and y4_full_verified else "DATA_ROOM_PRESENT__FULL_PAYLOAD_NOT_VERIFIED"
+    status = "FULL_PAYLOAD_VERIFIED" if not buckets["missing"] and not buckets["blockers"] and y4_full_verified else "DATA_ROOM_PRESENT__FULL_PAYLOAD_NOT_VERIFIED"
     report = {
         "status": status,
         "mode": "uploaded_data_room_manifest_v7",
         "source_zip": manifest.get("source_zip"),
         "total_entries": len(entries),
-        "missing_count": len(missing),
-        "certificate_grade_count": len(certificate_grade),
-        "conditional_count": len(conditional),
-        "blocker_count": len(blockers),
+        "missing_count": len(buckets["missing"]),
+        "certificate_grade_count": len(buckets["certificate_grade"]),
+        "conditional_count": len(buckets["conditional"]),
+        "blocker_count": len(buckets["blockers"]),
         "y4_full_verified": y4_full_verified,
         "y4_completion_status": y4_status,
-        "missing": missing,
-        "certificate_grade": certificate_grade,
-        "conditional": conditional,
-        "blockers": blockers,
+        **buckets,
         "sha256_manifest": hashlib.sha256(MANIFEST.read_bytes()).hexdigest(),
     }
 else:
@@ -67,8 +160,40 @@ else:
         "status": "NO_DATA_ROOM_MANIFEST_FOUND",
         "mode": "repo_local_strict",
         "missing_count": 1,
-        "missing": ["data/full_payload_manifest_v7.json"],
+        "missing": [{"path": "data/full_payload_manifest_v7.json"}],
     }
 
+# JSON report
 (REPORTS / "full_payload_validation_report.json").write_text(json.dumps(report, indent=2, sort_keys=True))
+
+# CSV blocker ledger
+with open(REPORTS / "blocker_remediation_ledger.csv", "w", newline="") as f:
+    fields = ["path", "status", "authority", "needed", "acceptance", "size_bytes"]
+    w = csv.DictWriter(f, fieldnames=fields)
+    w.writeheader()
+    for row in report.get("blockers", []):
+        w.writerow({k: row.get(k, "") for k in fields})
+
+# Markdown summary
+md = []
+md.append("# UGCT Full Payload Validation\n")
+md.append(f"Status: `{report['status']}`\n")
+md.append(f"Mode: `{report.get('mode')}`\n")
+if report.get("source_zip"):
+    md.append(f"Source ZIP: `{report['source_zip']}`\n")
+md.append("\n## Counts\n")
+for k in ["total_entries", "missing_count", "certificate_grade_count", "conditional_count", "blocker_count"]:
+    if k in report:
+        md.append(f"- {k}: {report[k]}\n")
+md.append(f"- y4_full_verified: {report.get('y4_full_verified')}\n")
+md.append(f"- y4_completion_status: `{report.get('y4_completion_status')}`\n")
+md.append("\n## Blocker remediation ledger\n")
+for b in report.get("blockers", []):
+    md.append(f"\n### `{b.get('path')}`\n")
+    md.append(f"- Current status: `{b.get('status')}`\n")
+    md.append(f"- Authority/toolchain: {b.get('authority')}\n")
+    md.append(f"- Needed: {b.get('needed')}\n")
+    md.append(f"- Acceptance: `{b.get('acceptance')}`\n")
+(REPORTS / "full_payload_validation_report.md").write_text("".join(md))
+
 print(json.dumps({k: report[k] for k in ["status","mode","total_entries","missing_count","certificate_grade_count","conditional_count","blocker_count","y4_full_verified"] if k in report}, indent=2, sort_keys=True))

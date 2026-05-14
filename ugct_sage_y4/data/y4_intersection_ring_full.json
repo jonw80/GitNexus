@@ -1,0 +1,18 @@
+{
+  "schema_version": "UGCT_Y4_FULL_INTERSECTION_TENSOR_V1",
+  "status": "FULL_CHAMBER_SPECIFIC_TENSOR_PENDING_EXCEPTIONAL_SECTOR",
+  "basis": ["R", "H", "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "Z", "C1", "C2", "C3", "C4"],
+  "resolution_chamber": "Esole-Yau Ewx",
+  "source_model": "B3 = P(O + K_dP8) over dP8; split SU(5) Tate model",
+  "quadruple_intersections": {},
+  "supported_tensor_source": "data/y4_intersection_ring_supported_sage_export.json",
+  "checks": {
+    "A4_cartan": true,
+    "chi_Y4": null,
+    "tadpole": null,
+    "all_degree4_multisets_reduced": false,
+    "unsupported_multisets": 1509,
+    "full_chamber_specific_tensor_verified": false
+  },
+  "acceptance_condition": "Overwrite this file with status FULL_CHAMBER_SPECIFIC_TENSOR_VERIFIED, chi_Y4=1056, tadpole=44, unsupported_multisets=0, and the full nonzero quadruple tensor."
+}

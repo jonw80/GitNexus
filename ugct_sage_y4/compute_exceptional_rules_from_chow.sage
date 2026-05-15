@@ -9,8 +9,8 @@
 #   reports/exceptional_chow_compute_report.json
 #
 # This reducer uses direct exported values if supplied. Otherwise it uses the
-# Sage quotient presentation, then performs auxiliary-class substitution and
-# named vanishing rules before declaring any monomial unresolved.
+# Sage quotient presentation, auxiliary class substitution, Cartan-pair
+# pushforward, and named vanishing rules before declaring a monomial unresolved.
 
 import itertools
 import json
@@ -39,10 +39,19 @@ ZERO_SECTION_NAMES = {"Z", "z"}
 BASE_NAMES = {"R", "H"} | {f"E{i}" for i in range(1, 9)}
 required_keys = ["status", "resolution_chamber", "basis", "ambient_variables", "divisor_classes", "sr_ideal_generators", "linear_equivalence_generators", "proper_transform_class", "hypersurface_class", "integration_rules"]
 
+A4 = [
+    [2, -1, 0, 0],
+    [-1, 2, -1, 0],
+    [0, -1, 2, -1],
+    [0, 0, -1, 2],
+]
+
 stats = {
     "single_cartan_pushforward_zero_terms": 0,
     "zero_section_cartan_disjoint_terms": 0,
-    "auxiliary_substitution_passes": 0
+    "auxiliary_substitution_passes": 0,
+    "cartan_pair_pushforward_terms": 0,
+    "higher_cartan_unresolved_terms": 0
 }
 
 def canonical_key(items):
@@ -156,6 +165,51 @@ def cartan_count(mon_parts):
 def has_zero_section(mon_parts):
     return any(p in ZERO_SECTION_NAMES for p in mon_parts)
 
+def surf_pair(a, b):
+    if a == "H" and b == "H":
+        return Fraction(1)
+    if a.startswith("E") and b.startswith("E") and a == b:
+        return Fraction(-1)
+    return Fraction(0)
+
+def k_pair(name):
+    if name == "H":
+        return Fraction(-3)
+    if name.startswith("E"):
+        return Fraction(-1)
+    return Fraction(0)
+
+def k_square():
+    return Fraction(1)
+
+def b3_triple(a, b, c):
+    names = [a, b, c]
+    rcount = names.count("R")
+    surf = [x for x in names if x != "R"]
+    if rcount == 0:
+        return Fraction(0)
+    if rcount == 1:
+        if len(surf) != 2:
+            return Fraction(0)
+        return surf_pair(surf[0], surf[1])
+    if rcount == 2:
+        if len(surf) != 1:
+            return k_square()
+        return k_pair(surf[0])
+    if rcount == 3:
+        return k_square()
+    return Fraction(0)
+
+def cartan_pair_pushforward_value(mon_parts):
+    cart = [p for p in mon_parts if p in CARTAN]
+    non = [p for p in mon_parts if p not in CARTAN]
+    if len(cart) == 2 and len(non) == 2 and all(p in BASE_NAMES for p in non):
+        i = int(cart[0][1:]) - 1
+        j = int(cart[1][1:]) - 1
+        stats["cartan_pair_pushforward_terms"] += 1
+        return Fraction(-A4[i][j]) * b3_triple("R", non[0], non[1])
+    return None
+
 def make_aux_subs(names):
     def n(x):
         return names[x]
@@ -172,40 +226,43 @@ def make_aux_subs(names):
             for E in Es:
                 out += aE*E
             return out
-        for var, expr in {
-            "beta5": cls(2, 6, -2),
-            "beta4": cls(3, 12, -4),
-            "beta3": cls(4, 18, -6),
-            "beta2": cls(5, 24, -8),
-            "beta0": cls(7, 36, -12),
-        }.items():
-            if var in names:
-                subs[n(var)] = expr
+        beta5_cls = cls(2, 6, -2)
+        beta4_cls = cls(3, 12, -4)
+        beta3_cls = cls(4, 18, -6)
+        beta2_cls = cls(5, 24, -8)
+        beta0_cls = cls(7, 36, -12)
+        if "beta5" in names: subs[n("beta5")] = beta5_cls
+        if "beta4" in names: subs[n("beta4")] = beta4_cls
+        if "beta3" in names: subs[n("beta3")] = beta3_cls
+        if "beta2" in names: subs[n("beta2")] = beta2_cls
+        if "beta0" in names: subs[n("beta0")] = beta0_cls
         if "Z" in names:
-            if "x" in names:
-                subs[n("x")] = n("Z") + cls(4, 12, -4)
-            if "y" in names:
-                subs[n("y")] = n("Z") + cls(6, 18, -6)
-    # s,t use the already declared local definitions after basic aliases.
-    if all(k in names for k in ["s", "y", "beta5", "w", "beta3"]):
-        subs[n("s")] = n("y") + n("beta5") + n("w")*n("beta3")
-    if all(k in names for k in ["t", "x", "beta4", "w", "beta0", "beta2"]):
-        subs[n("t")] = n("x") + n("beta4") + n("w")**2*n("beta0") + n("w")*n("beta2")
+            x_cls = n("Z") + cls(4, 12, -4)
+            y_cls = n("Z") + cls(6, 18, -6)
+            if "x" in names: subs[n("x")] = x_cls
+            if "y" in names: subs[n("y")] = y_cls
+            # Important class-level correction: s and t are local equations whose
+            # summands have common section classes. For Chow integration use the
+            # common divisor class, not the local polynomial expansion.
+            if "s" in names: subs[n("s")] = y_cls
+            if "t" in names: subs[n("t")] = x_cls
     return subs
 
-def substitute_auxiliary(poly, gb, aux_subs):
+def substitute_auxiliary(poly, aux_subs):
     if not aux_subs:
         return poly
     out = poly
-    # Two passes handle s,t -> x,y,beta,w and then x,y,beta,w -> divisor classes.
+    # No Groebner reduction after class substitution: reduction may reintroduce
+    # auxiliary variables because of the chosen leading terms. Integration needs
+    # divisor-class expansion in the basis variables.
     for _ in range(2):
-        out = out.subs(aux_subs).reduce(gb)
+        out = out.subs(aux_subs)
         stats["auxiliary_substitution_passes"] += 1
     return out
 
 def integrate_normal_form(poly, top_values, names, gb, aux_subs):
     total = Fraction(0)
-    poly = substitute_auxiliary(poly, gb, aux_subs)
+    poly = substitute_auxiliary(poly, aux_subs)
     for exp, coeff in poly.dict().items():
         mon_parts = []
         for var, power in zip(names["__varlist__"], exp):
@@ -218,9 +275,15 @@ def integrate_normal_form(poly, top_values, names, gb, aux_subs):
         if has_zero_section(mon_parts) and cartan_count(mon_parts) >= 1:
             stats["zero_section_cartan_disjoint_terms"] += 1
             continue
+        cp = cartan_pair_pushforward_value(mon_parts)
+        if cp is not None:
+            total += coeff_q * cp
+            continue
         if cartan_count(mon_parts) == 1:
             stats["single_cartan_pushforward_zero_terms"] += 1
             continue
+        if cartan_count(mon_parts) >= 3:
+            stats["higher_cartan_unresolved_terms"] += 1
         if coeff != 0:
             raise KeyError("No integration value for normal-form monomial %s" % mon_key)
     return total
@@ -313,6 +376,6 @@ if rules is not None:
     raise SystemExit(0)
 rules = try_sage_quotient_mode(chow, slots)
 if rules is not None:
-    write_verified_rules(rules, "Sage quotient presentation plus auxiliary substitution and named Cartan/zero-section vanishing rules in data/esole_yau_ewx_resolved_ambient_chow.json.", "sage_polynomial_mode", input_status)
+    write_verified_rules(rules, "Sage quotient presentation plus class-level auxiliary substitution, Cartan-pair pushforward, and named vanishing rules in data/esole_yau_ewx_resolved_ambient_chow.json.", "sage_polynomial_mode", input_status)
     raise SystemExit(0)
 write_pending_report("No exceptional_intersection_values table and no sage_polynomial_mode presentation supplied.", ["exceptional_intersection_values", "sage_polynomial_mode"])

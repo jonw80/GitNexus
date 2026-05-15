@@ -20,6 +20,9 @@ jobs:
       - name: Bootstrap Esole-Yau source data
         working-directory: ugct_sage_y4
         run: python3 bootstrap_esole_yau_sources.py
+      - name: Fetch IntersectionNumbers ancillary package
+        working-directory: ugct_sage_y4
+        run: python3 fetch_intersectionnumbers_ancillary.py
       - name: Compute exact higher-Cartan Ewx values
         working-directory: ugct_sage_y4
         run: sage -python compute_higher_cartan_exact_values.sage
@@ -47,3 +50,5 @@ jobs:
             ugct_sage_y4/reports/*.json
             ugct_sage_y4/reports/*.md
             ugct_sage_y4/reports/*.csv
+            ugct_sage_y4/sources/*.m
+            ugct_sage_y4/sources/*.nb

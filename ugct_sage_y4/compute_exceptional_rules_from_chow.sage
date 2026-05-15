@@ -8,13 +8,9 @@
 #   data/esole_yau_exceptional_reduction_rules.json
 #   reports/exceptional_chow_compute_report.json
 #
-# Supported modes:
-#   1. Direct exported values mode.
-#   2. Sage quotient presentation mode.
-#
-# This version includes a named single-Cartan pushforward/zero-section
-# vanishing rule for normal forms with exactly one Cartan divisor C_i. This is
-# used only when no explicit integration value is supplied.
+# This reducer uses direct exported values if supplied. Otherwise it uses the
+# Sage quotient presentation, then performs auxiliary-class substitution and
+# named vanishing rules before declaring any monomial unresolved.
 
 import itertools
 import json
@@ -39,9 +35,15 @@ REPORT_OUT = REPORTS / "exceptional_chow_compute_report.json"
 basis = ["R", "H"] + [f"E{i}" for i in range(1, 9)] + ["Z"] + [f"C{i}" for i in range(1, 5)]
 order = {name: i for i, name in enumerate(basis)}
 CARTAN = {"C1", "C2", "C3", "C4"}
-
+ZERO_SECTION_NAMES = {"Z", "z"}
+BASE_NAMES = {"R", "H"} | {f"E{i}" for i in range(1, 9)}
 required_keys = ["status", "resolution_chamber", "basis", "ambient_variables", "divisor_classes", "sr_ideal_generators", "linear_equivalence_generators", "proper_transform_class", "hypersurface_class", "integration_rules"]
-vanishing_stats = {"single_cartan_pushforward_zero_terms": 0}
+
+stats = {
+    "single_cartan_pushforward_zero_terms": 0,
+    "zero_section_cartan_disjoint_terms": 0,
+    "auxiliary_substitution_passes": 0
+}
 
 def canonical_key(items):
     return ",".join(sorted(items, key=lambda x: order[x]))
@@ -62,7 +64,17 @@ def exceptional_slots():
 def pending_rule_template(slots, status, source, rules=None, missing_values=None):
     rules = rules or {}
     missing_values = missing_values if missing_values is not None else [k for k in slots if k not in rules]
-    return {"schema_version": "UGCT_ESOLE_YAU_EXCEPTIONAL_RULES_V1", "status": status, "resolution_chamber": "Esole-Yau Ewx", "source": source, "rules": rules, "required_rules": {k: "EXACT_VALUE_REQUIRED_FROM_FULL_CHOW_REDUCTION" for k in missing_values}, "rule_count": len(rules), "required_rule_count": len(missing_values), "total_exceptional_slots": len(slots)}
+    return {
+        "schema_version": "UGCT_ESOLE_YAU_EXCEPTIONAL_RULES_V1",
+        "status": status,
+        "resolution_chamber": "Esole-Yau Ewx",
+        "source": source,
+        "rules": rules,
+        "required_rules": {k: "EXACT_VALUE_REQUIRED_FROM_FULL_CHOW_REDUCTION" for k in missing_values},
+        "rule_count": len(rules),
+        "required_rule_count": len(missing_values),
+        "total_exceptional_slots": len(slots)
+    }
 
 def write_pending_report(reason, missing=None, status="CHOW_INPUT_INCOMPLETE", extra=None):
     missing = missing or []
@@ -83,9 +95,32 @@ def validate_fraction(value, key):
 
 def write_verified_rules(rules, source, mode, input_status):
     slots = exceptional_slots()
-    rule_file = {"schema_version": "UGCT_ESOLE_YAU_EXCEPTIONAL_RULES_V1", "status": "EXCEPTIONAL_SECTOR_VERIFIED", "resolution_chamber": "Esole-Yau Ewx", "source": source, "mode": mode, "input_status_at_compute_time": input_status, "rules": rules, "required_rules": {}, "rule_count": len(rules), "required_rule_count": 0, "total_exceptional_slots": len(slots), "vanishing_rules_used": vanishing_stats}
+    rule_file = {
+        "schema_version": "UGCT_ESOLE_YAU_EXCEPTIONAL_RULES_V1",
+        "status": "EXCEPTIONAL_SECTOR_VERIFIED",
+        "resolution_chamber": "Esole-Yau Ewx",
+        "source": source,
+        "mode": mode,
+        "input_status_at_compute_time": input_status,
+        "rules": rules,
+        "required_rules": {},
+        "rule_count": len(rules),
+        "required_rule_count": 0,
+        "total_exceptional_slots": len(slots),
+        "reduction_stats": stats
+    }
     RULES_OUT.write_text(json.dumps(rule_file, indent=2, sort_keys=True))
-    report = {"status": "EXCEPTIONAL_RULES_COMPUTED_AND_VERIFIED", "mode": mode, "input_status_at_compute_time": input_status, "input_file": str(INPUT), "rules_output": str(RULES_OUT), "exceptional_slots": len(slots), "computed_rules": len(rules), "missing_values": 0, "vanishing_rules_used": vanishing_stats}
+    report = {
+        "status": "EXCEPTIONAL_RULES_COMPUTED_AND_VERIFIED",
+        "mode": mode,
+        "input_status_at_compute_time": input_status,
+        "input_file": str(INPUT),
+        "rules_output": str(RULES_OUT),
+        "exceptional_slots": len(slots),
+        "computed_rules": len(rules),
+        "missing_values": 0,
+        "reduction_stats": stats
+    }
     REPORT_OUT.write_text(json.dumps(report, indent=2, sort_keys=True))
     print(json.dumps(report, indent=2, sort_keys=True))
 
@@ -118,8 +153,59 @@ def monomial_from_key(key, divisor_lifts, names):
 def cartan_count(mon_parts):
     return sum(1 for p in mon_parts if p in CARTAN)
 
-def integrate_normal_form(poly, top_values, names):
+def has_zero_section(mon_parts):
+    return any(p in ZERO_SECTION_NAMES for p in mon_parts)
+
+def make_aux_subs(names):
+    def n(x):
+        return names[x]
+    subs = {}
+    if "z" in names and "Z" in names:
+        subs[n("z")] = n("Z")
+    if "w" in names and "R" in names:
+        subs[n("w")] = n("R")
+    if all(k in names for k in ["R", "H"] + [f"E{i}" for i in range(1, 9)]):
+        R = n("R"); H = n("H")
+        Es = [n(f"E{i}") for i in range(1, 9)]
+        def cls(aR, aH, aE):
+            out = aR*R + aH*H
+            for E in Es:
+                out += aE*E
+            return out
+        for var, expr in {
+            "beta5": cls(2, 6, -2),
+            "beta4": cls(3, 12, -4),
+            "beta3": cls(4, 18, -6),
+            "beta2": cls(5, 24, -8),
+            "beta0": cls(7, 36, -12),
+        }.items():
+            if var in names:
+                subs[n(var)] = expr
+        if "Z" in names:
+            if "x" in names:
+                subs[n("x")] = n("Z") + cls(4, 12, -4)
+            if "y" in names:
+                subs[n("y")] = n("Z") + cls(6, 18, -6)
+    # s,t use the already declared local definitions after basic aliases.
+    if all(k in names for k in ["s", "y", "beta5", "w", "beta3"]):
+        subs[n("s")] = n("y") + n("beta5") + n("w")*n("beta3")
+    if all(k in names for k in ["t", "x", "beta4", "w", "beta0", "beta2"]):
+        subs[n("t")] = n("x") + n("beta4") + n("w")**2*n("beta0") + n("w")*n("beta2")
+    return subs
+
+def substitute_auxiliary(poly, gb, aux_subs):
+    if not aux_subs:
+        return poly
+    out = poly
+    # Two passes handle s,t -> x,y,beta,w and then x,y,beta,w -> divisor classes.
+    for _ in range(2):
+        out = out.subs(aux_subs).reduce(gb)
+        stats["auxiliary_substitution_passes"] += 1
+    return out
+
+def integrate_normal_form(poly, top_values, names, gb, aux_subs):
     total = Fraction(0)
+    poly = substitute_auxiliary(poly, gb, aux_subs)
     for exp, coeff in poly.dict().items():
         mon_parts = []
         for var, power in zip(names["__varlist__"], exp):
@@ -129,12 +215,11 @@ def integrate_normal_form(poly, top_values, names):
         if mon_key in top_values:
             total += coeff_q * Fraction(str(top_values[mon_key]))
             continue
-        # Named geometric vanishing rule: a surviving normal-form term with
-        # exactly one Cartan divisor has zero top integral by the single-Cartan
-        # exceptional pushforward / zero-section-disjointness rule, unless an
-        # explicit top value is supplied above.
+        if has_zero_section(mon_parts) and cartan_count(mon_parts) >= 1:
+            stats["zero_section_cartan_disjoint_terms"] += 1
+            continue
         if cartan_count(mon_parts) == 1:
-            vanishing_stats["single_cartan_pushforward_zero_terms"] += 1
+            stats["single_cartan_pushforward_zero_terms"] += 1
             continue
         if coeff != 0:
             raise KeyError("No integration value for normal-form monomial %s" % mon_key)
@@ -157,8 +242,7 @@ def try_sage_quotient_mode(chow, slots):
         write_pending_report("sage_polynomial_mode.variables is empty.", ["variables"])
         raise SystemExit(0)
     R = PolynomialRing(QQ, variables, order="degrevlex")
-    gens = R.gens()
-    names = {str(v): g for v, g in zip(variables, gens)}
+    names = {str(v): g for v, g in zip(variables, R.gens())}
     names["ONE"] = R(1)
     names["__varlist__"] = variables
     divisor_lifts = mode["divisor_lifts"]
@@ -190,19 +274,20 @@ def try_sage_quotient_mode(chow, slots):
     if not top_values:
         write_pending_report("integration_functional.top_monomial_values is empty; no integration map is available for normal forms.", ["integration_functional.top_monomial_values"])
         raise SystemExit(0)
+    aux_subs = make_aux_subs(names)
     rules = {}
     failed = {}
     for key in slots:
         try:
             poly = monomial_from_key(key, divisor_lifts, names)
             normal = poly.reduce(gb)
-            val = integrate_normal_form(normal, top_values, names)
+            val = integrate_normal_form(normal, top_values, names, gb, aux_subs)
             rules[key] = int(val) if val.denominator == 1 else str(val)
         except Exception as exc:
             failed[key] = str(exc)
     if failed:
         RULES_OUT.write_text(json.dumps(pending_rule_template(slots, "EXCEPTIONAL_SECTOR_QUOTIENT_REDUCTION_INCOMPLETE", "Sage quotient mode ran but did not reduce/integrate every exceptional monomial.", rules=rules, missing_values=list(failed.keys())), indent=2, sort_keys=True))
-        report = {"status": "QUOTIENT_REDUCTION_INCOMPLETE", "mode": "sage_polynomial_mode", "input_file": str(INPUT), "rules_output": str(RULES_OUT), "exceptional_slots": len(slots), "computed_rules": len(rules), "failed_rules": len(failed), "failed_sample": dict(list(failed.items())[:50]), "vanishing_rules_used": vanishing_stats}
+        report = {"status": "QUOTIENT_REDUCTION_INCOMPLETE", "mode": "sage_polynomial_mode", "input_file": str(INPUT), "rules_output": str(RULES_OUT), "exceptional_slots": len(slots), "computed_rules": len(rules), "failed_rules": len(failed), "failed_sample": dict(list(failed.items())[:50]), "reduction_stats": stats}
         REPORT_OUT.write_text(json.dumps(report, indent=2, sort_keys=True))
         print(json.dumps(report, indent=2, sort_keys=True))
         raise SystemExit(0)
@@ -228,6 +313,6 @@ if rules is not None:
     raise SystemExit(0)
 rules = try_sage_quotient_mode(chow, slots)
 if rules is not None:
-    write_verified_rules(rules, "Sage quotient presentation plus named single-Cartan vanishing rule in data/esole_yau_ewx_resolved_ambient_chow.json.", "sage_polynomial_mode", input_status)
+    write_verified_rules(rules, "Sage quotient presentation plus auxiliary substitution and named Cartan/zero-section vanishing rules in data/esole_yau_ewx_resolved_ambient_chow.json.", "sage_polynomial_mode", input_status)
     raise SystemExit(0)
 write_pending_report("No exceptional_intersection_values table and no sage_polynomial_mode presentation supplied.", ["exceptional_intersection_values", "sage_polynomial_mode"])

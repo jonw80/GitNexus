@@ -1,20 +1,13 @@
 {
-  "schema_version": "UGCT_ESOLE_YAU_EWX_RESOLVED_AMBIENT_CHOW_V2",
+  "schema_version": "UGCT_ESOLE_YAU_EWX_RESOLVED_AMBIENT_CHOW_V2_1",
   "status": "RESOLVED_AMBIENT_CHOW_MANUAL_TRANSCRIPTION_PARTIAL__QUOTIENT_RELATIONS_SUPPLIED_INTEGRATION_MAP_PENDING",
   "resolution_chamber": "Esole-Yau Ewx",
   "basis": ["R", "H", "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "Z", "C1", "C2", "C3", "C4"],
-  "ambient_variables": [
-    "R", "H", "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "Z", "C1", "C2", "C3", "C4",
-    "x", "y", "z", "w", "beta0", "beta2", "beta3", "beta4", "beta5", "Aplus", "Splus", "Aminus", "Sminus", "s", "t"
-  ],
+  "ambient_variables": ["R", "H", "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "Z", "C1", "C2", "C3", "C4", "x", "y", "z", "w", "beta0", "beta2", "beta3", "beta4", "beta5", "Aplus", "Splus", "Aminus", "Sminus", "s", "t"],
   "authority": {
     "source_geometry": "Esole-Yau split SU(5)/A4 small-resolution chamber Ewx, using the local binomial model u1*u2*u3-v1*v2 and B12 pullback (u1,u2,u3;v1,v2)=(x,w,t;y,s).",
-    "transcribed_from_prior_payloads": [
-      "y4_chow_gatekeeper_v2_esole_yau_chamber/data/y4_resolution_chamber.json",
-      "y4_chow_gatekeeper_v3_global_chow_data/data/global_chow_reduction_data.json",
-      "y4_chow_gatekeeper_v4_tensor_export/data/global_chow_reduction_data.json"
-    ],
-    "status_note": "This file now contains the actual transcribed Ewx local equations and global class relations available in the existing payload. It still lacks the full normal-form integration functional for all exceptional self-intersections, so it is not marked RESOLVED_AMBIENT_CHOW_DATA_VERIFIED."
+    "transcribed_from_prior_payloads": ["y4_chow_gatekeeper_v2_esole_yau_chamber/data/y4_resolution_chamber.json", "y4_chow_gatekeeper_v3_global_chow_data/data/global_chow_reduction_data.json", "y4_chow_gatekeeper_v4_tensor_export/data/global_chow_reduction_data.json"],
+    "status_note": "Exponent syntax patched from ^ to ** for Sage/Python parsing."
   },
   "divisor_classes": {
     "R": "projective-bundle divisor on B3=P(O+K_dP8)",
@@ -53,33 +46,14 @@
     "zero_section_relation_on_Y": "Z*(Z + 2R + 6H - 2E1 - 2E2 - 2E3 - 2E4 - 2E5 - 2E6 - 2E7 - 2E8)=0",
     "smooth_weierstrass_hypersurface_class": "3Z + 12R + 36H - 12E1 - 12E2 - 12E3 - 12E4 - 12E5 - 12E6 - 12E7 - 12E8"
   },
-  "sr_ideal_generators": [
-    "x*y*z",
-    "Aplus*Splus",
-    "Aminus*Sminus"
-  ],
-  "linear_equivalence_generators": [
-    "R*(R + 3*H - E1 - E2 - E3 - E4 - E5 - E6 - E7 - E8)",
-    "Z*(Z + 2*R + 6*H - 2*E1 - 2*E2 - 2*E3 - 2*E4 - 2*E5 - 2*E6 - 2*E7 - 2*E8)",
-    "H*E1", "H*E2", "H*E3", "H*E4", "H*E5", "H*E6", "H*E7", "H*E8",
-    "E1*E2", "E1*E3", "E1*E4", "E1*E5", "E1*E6", "E1*E7", "E1*E8",
-    "E2*E3", "E2*E4", "E2*E5", "E2*E6", "E2*E7", "E2*E8",
-    "E3*E4", "E3*E5", "E3*E6", "E3*E7", "E3*E8",
-    "E4*E5", "E4*E6", "E4*E7", "E4*E8",
-    "E5*E6", "E5*E7", "E5*E8",
-    "E6*E7", "E6*E8",
-    "E7*E8"
-  ],
+  "sr_ideal_generators": ["x*y*z", "Aplus*Splus", "Aminus*Sminus"],
+  "linear_equivalence_generators": ["R*(R + 3*H - E1 - E2 - E3 - E4 - E5 - E6 - E7 - E8)", "Z*(Z + 2*R + 6*H - 2*E1 - 2*E2 - 2*E3 - 2*E4 - 2*E5 - 2*E6 - 2*E7 - 2*E8)", "H*E1", "H*E2", "H*E3", "H*E4", "H*E5", "H*E6", "H*E7", "H*E8", "E1*E2", "E1*E3", "E1*E4", "E1*E5", "E1*E6", "E1*E7", "E1*E8", "E2*E3", "E2*E4", "E2*E5", "E2*E6", "E2*E7", "E2*E8", "E3*E4", "E3*E5", "E3*E6", "E3*E7", "E3*E8", "E4*E5", "E4*E6", "E4*E7", "E4*E8", "E5*E6", "E5*E7", "E5*E8", "E6*E7", "E6*E8", "E7*E8"],
   "proper_transform_class": "Aminus*Aplus - Sminus*Splus*t",
-  "hypersurface_class": "z*y^2 + beta5*x*y*z + beta3*w^2*y*z^2 - x^3 - beta4*w*x^2*z - beta2*w^3*x*z^2 - beta0*w^5*z^3",
-  "proper_transform_equations": [
-    "w*Aplus - Splus*y",
-    "x*Aminus - Sminus*s",
-    "Aminus*Aplus - Sminus*Splus*t"
-  ],
+  "hypersurface_class": "z*y**2 + beta5*x*y*z + beta3*w**2*y*z**2 - x**3 - beta4*w*x**2*z - beta2*w**3*x*z**2 - beta0*w**5*z**3",
+  "proper_transform_equations": ["w*Aplus - Splus*y", "x*Aminus - Sminus*s", "Aminus*Aplus - Sminus*Splus*t"],
   "local_definitions": {
     "s": "y + beta5 + w*beta3",
-    "t": "x + beta4 + w^2*beta0 + w*beta2"
+    "t": "x + beta4 + w**2*beta0 + w*beta2"
   },
   "integration_rules": {
     "base_ring": "dP8 with H^2=1, H.E_i=0, E_i.E_j=-delta_ij",
@@ -99,73 +73,20 @@
     }
   },
   "sage_polynomial_mode": {
-    "description": "Manual transcription mode using the Esole-Yau Ewx local equations and the available global class ledger. The quotient ideal is now nonempty and Sage-parsable. Remaining failure, if any, should identify missing normal-form integration values or divisor-lift relations rather than empty quotient data.",
-    "variables": [
-      "R", "H", "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "Z", "C1", "C2", "C3", "C4",
-      "x", "y", "z", "w", "beta0", "beta2", "beta3", "beta4", "beta5", "Aplus", "Splus", "Aminus", "Sminus", "s", "t"
-    ],
-    "quotient_ideal_generators": [
-      "R*(R + 3*H - E1 - E2 - E3 - E4 - E5 - E6 - E7 - E8)",
-      "Z*(Z + 2*R + 6*H - 2*E1 - 2*E2 - 2*E3 - 2*E4 - 2*E5 - 2*E6 - 2*E7 - 2*E8)",
-      "x - (Z + 4*R + 12*H - 4*E1 - 4*E2 - 4*E3 - 4*E4 - 4*E5 - 4*E6 - 4*E7 - 4*E8)",
-      "y - (Z + 6*R + 18*H - 6*E1 - 6*E2 - 6*E3 - 6*E4 - 6*E5 - 6*E6 - 6*E7 - 6*E8)",
-      "z - Z",
-      "w - R",
-      "beta5 - (2*R + 6*H - 2*E1 - 2*E2 - 2*E3 - 2*E4 - 2*E5 - 2*E6 - 2*E7 - 2*E8)",
-      "beta4 - (3*R + 12*H - 4*E1 - 4*E2 - 4*E3 - 4*E4 - 4*E5 - 4*E6 - 4*E7 - 4*E8)",
-      "beta3 - (4*R + 18*H - 6*E1 - 6*E2 - 6*E3 - 6*E4 - 6*E5 - 6*E6 - 6*E7 - 6*E8)",
-      "beta2 - (5*R + 24*H - 8*E1 - 8*E2 - 8*E3 - 8*E4 - 8*E5 - 8*E6 - 8*E7 - 8*E8)",
-      "beta0 - (7*R + 36*H - 12*E1 - 12*E2 - 12*E3 - 12*E4 - 12*E5 - 12*E6 - 12*E7 - 12*E8)",
-      "s - (y + beta5 + w*beta3)",
-      "t - (x + beta4 + w^2*beta0 + w*beta2)",
-      "w*Aplus - Splus*y",
-      "x*Aminus - Sminus*s",
-      "Aminus*Aplus - Sminus*Splus*t",
-      "Aplus*Splus",
-      "Aminus*Sminus",
-      "x*y*z"
-    ],
-    "divisor_lifts": {
-      "R": "R",
-      "H": "H",
-      "E1": "E1",
-      "E2": "E2",
-      "E3": "E3",
-      "E4": "E4",
-      "E5": "E5",
-      "E6": "E6",
-      "E7": "E7",
-      "E8": "E8",
-      "Z": "Z",
-      "C1": "C1",
-      "C2": "C2",
-      "C3": "C3",
-      "C4": "C4"
-    },
+    "description": "Manual transcription mode using Esole-Yau Ewx local equations and available global class ledger. Exponents use Sage/Python ** syntax.",
+    "variables": ["R", "H", "E1", "E2", "E3", "E4", "E5", "E6", "E7", "E8", "Z", "C1", "C2", "C3", "C4", "x", "y", "z", "w", "beta0", "beta2", "beta3", "beta4", "beta5", "Aplus", "Splus", "Aminus", "Sminus", "s", "t"],
+    "quotient_ideal_generators": ["R*(R + 3*H - E1 - E2 - E3 - E4 - E5 - E6 - E7 - E8)", "Z*(Z + 2*R + 6*H - 2*E1 - 2*E2 - 2*E3 - 2*E4 - 2*E5 - 2*E6 - 2*E7 - 2*E8)", "x - (Z + 4*R + 12*H - 4*E1 - 4*E2 - 4*E3 - 4*E4 - 4*E5 - 4*E6 - 4*E7 - 4*E8)", "y - (Z + 6*R + 18*H - 6*E1 - 6*E2 - 6*E3 - 6*E4 - 6*E5 - 6*E6 - 6*E7 - 6*E8)", "z - Z", "w - R", "beta5 - (2*R + 6*H - 2*E1 - 2*E2 - 2*E3 - 2*E4 - 2*E5 - 2*E6 - 2*E7 - 2*E8)", "beta4 - (3*R + 12*H - 4*E1 - 4*E2 - 4*E3 - 4*E4 - 4*E5 - 4*E6 - 4*E7 - 4*E8)", "beta3 - (4*R + 18*H - 6*E1 - 6*E2 - 6*E3 - 6*E4 - 6*E5 - 6*E6 - 6*E7 - 6*E8)", "beta2 - (5*R + 24*H - 8*E1 - 8*E2 - 8*E3 - 8*E4 - 8*E5 - 8*E6 - 8*E7 - 8*E8)", "beta0 - (7*R + 36*H - 12*E1 - 12*E2 - 12*E3 - 12*E4 - 12*E5 - 12*E6 - 12*E7 - 12*E8)", "s - (y + beta5 + w*beta3)", "t - (x + beta4 + w**2*beta0 + w*beta2)", "w*Aplus - Splus*y", "x*Aminus - Sminus*s", "Aminus*Aplus - Sminus*Splus*t", "Aplus*Splus", "Aminus*Sminus", "x*y*z"],
+    "divisor_lifts": {"R": "R", "H": "H", "E1": "E1", "E2": "E2", "E3": "E3", "E4": "E4", "E5": "E5", "E6": "E6", "E7": "E7", "E8": "E8", "Z": "Z", "C1": "C1", "C2": "C2", "C3": "C3", "C4": "C4"},
     "include_hypersurface_as_relation": false,
     "integration_functional": {
       "description": "Known base/zero-section top values are supplied. Full exceptional normal-form values are intentionally not fabricated; a rerun will identify the remaining missing normal forms if the transcribed quotient ideal is insufficient.",
-      "top_monomial_values": {
-        "R*H*H*Z": "1",
-        "R*E1*E1*Z": "-1",
-        "R*E2*E2*Z": "-1",
-        "R*E3*E3*Z": "-1",
-        "R*E4*E4*Z": "-1",
-        "R*E5*E5*Z": "-1",
-        "R*E6*E6*Z": "-1",
-        "R*E7*E7*Z": "-1",
-        "R*E8*E8*Z": "-1"
-      }
+      "top_monomial_values": {"R*H*H*Z": "1", "R*E1*E1*Z": "-1", "R*E2*E2*Z": "-1", "R*E3*E3*Z": "-1", "R*E4*E4*Z": "-1", "R*E5*E5*Z": "-1", "R*E6*E6*Z": "-1", "R*E7*E7*Z": "-1", "R*E8*E8*Z": "-1"}
     }
   },
   "exceptional_intersection_values": {},
   "required_completion": {
     "status_required_for_full_acceptance": "RESOLVED_AMBIENT_CHOW_DATA_VERIFIED",
-    "remaining_if_workflow_still_fails": [
-      "Cartan divisor lifts C1..C4 as explicit resolved ambient exceptional classes rather than formal variables",
-      "full Stanley-Reisner ideal of the resolved ambient space including codimension-one blowup chart exclusions",
-      "normal-form integration values for all exceptional top monomials that survive the quotient reduction"
-    ]
+    "remaining_if_workflow_still_fails": ["Cartan divisor lifts C1..C4 as explicit resolved ambient exceptional classes rather than formal variables", "full Stanley-Reisner ideal of the resolved ambient space including codimension-one blowup chart exclusions", "normal-form integration values for all exceptional top monomials that survive the quotient reduction"]
   },
-  "notes": "This is no longer an empty template. It is a manual transcription of the equations and class relations available in the prior Esole-Yau chamber/global Chow payload. It may still be insufficient for a full tensor if the missing Cartan divisor lifts and exceptional top integration map are not derivable from these relations alone."
+  "notes": "Manual transcription plus Sage exponent syntax fix. The next run should reach the actual Groebner/reduction or missing-normal-form stage."
 }

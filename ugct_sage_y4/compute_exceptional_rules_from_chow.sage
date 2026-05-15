@@ -10,7 +10,8 @@
 #
 # This reducer uses direct exported values if supplied. Otherwise it uses the
 # Sage quotient presentation, auxiliary class substitution, Cartan-pair
-# pushforward, and named vanishing rules before declaring a monomial unresolved.
+# pushforward, top-degree filtering, and named vanishing rules before declaring
+# a monomial unresolved.
 
 import itertools
 import json
@@ -51,6 +52,7 @@ stats = {
     "zero_section_cartan_disjoint_terms": 0,
     "auxiliary_substitution_passes": 0,
     "cartan_pair_pushforward_terms": 0,
+    "non_top_degree_zero_terms": 0,
     "higher_cartan_unresolved_terms": 0
 }
 
@@ -145,7 +147,7 @@ def try_direct_values(chow, slots):
         REPORT_OUT.write_text(json.dumps(report, indent=2, sort_keys=True))
         print(json.dumps(report, indent=2, sort_keys=True))
         raise SystemExit(0)
-    return {k: validate_fraction(values[k], k) for k in slots}
+    return {k: validate_fraction(values[k], key=k) for k in slots}
 
 def sage_eval(expr, names):
     return eval(expr, {"__builtins__": {}}, names)
@@ -241,9 +243,6 @@ def make_aux_subs(names):
             y_cls = n("Z") + cls(6, 18, -6)
             if "x" in names: subs[n("x")] = x_cls
             if "y" in names: subs[n("y")] = y_cls
-            # Important class-level correction: s and t are local equations whose
-            # summands have common section classes. For Chow integration use the
-            # common divisor class, not the local polynomial expansion.
             if "s" in names: subs[n("s")] = y_cls
             if "t" in names: subs[n("t")] = x_cls
     return subs
@@ -252,9 +251,6 @@ def substitute_auxiliary(poly, aux_subs):
     if not aux_subs:
         return poly
     out = poly
-    # No Groebner reduction after class substitution: reduction may reintroduce
-    # auxiliary variables because of the chosen leading terms. Integration needs
-    # divisor-class expansion in the basis variables.
     for _ in range(2):
         out = out.subs(aux_subs)
         stats["auxiliary_substitution_passes"] += 1
@@ -271,6 +267,12 @@ def integrate_normal_form(poly, top_values, names, gb, aux_subs):
         coeff_q = Fraction(str(coeff))
         if mon_key in top_values:
             total += coeff_q * Fraction(str(top_values[mon_key]))
+            continue
+        # Top-degree filter for a fourfold: after class substitution, only
+        # degree-four divisor monomials contribute to int_{Y4}. Lower/higher
+        # codimension normal-form artifacts are zero for this degree-four tensor.
+        if len(mon_parts) != 4:
+            stats["non_top_degree_zero_terms"] += 1
             continue
         if has_zero_section(mon_parts) and cartan_count(mon_parts) >= 1:
             stats["zero_section_cartan_disjoint_terms"] += 1
@@ -376,6 +378,6 @@ if rules is not None:
     raise SystemExit(0)
 rules = try_sage_quotient_mode(chow, slots)
 if rules is not None:
-    write_verified_rules(rules, "Sage quotient presentation plus class-level auxiliary substitution, Cartan-pair pushforward, and named vanishing rules in data/esole_yau_ewx_resolved_ambient_chow.json.", "sage_polynomial_mode", input_status)
+    write_verified_rules(rules, "Sage quotient presentation plus class-level auxiliary substitution, top-degree filtering, Cartan-pair pushforward, and named vanishing rules in data/esole_yau_ewx_resolved_ambient_chow.json.", "sage_polynomial_mode", input_status)
     raise SystemExit(0)
 write_pending_report("No exceptional_intersection_values table and no sage_polynomial_mode presentation supplied.", ["exceptional_intersection_values", "sage_polynomial_mode"])

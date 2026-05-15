@@ -1,0 +1,27 @@
+{
+  "schema_version": "UGCT_HIGHER_CARTAN_CLOSURE_RULES_V1",
+  "status": "DERIVED_FALLBACK_ENABLED__EXACT_EWX_SELF_INTERSECTION_TABLE_PENDING",
+  "resolution_chamber": "Esole-Yau Ewx",
+  "purpose": "Close the final higher-Cartan residual sector of the degree-four Y4 tensor after the Sage quotient reduction has computed the universal, zero-section, single-Cartan, and Cartan-pair sectors.",
+  "mathematical_scope": {
+    "base_triple_cartan_terms": "D_base*C_i*C_j*C_k",
+    "quadruple_cartan_terms": "C_i*C_j*C_k*C_l",
+    "residual_counts_from_workflow": {
+      "base_triple_cartan": 200,
+      "quadruple_cartan": 35,
+      "total": 235
+    }
+  },
+  "exact_values": {},
+  "fallback_rule": {
+    "enabled": true,
+    "name": "EWX_HIGHER_CARTAN_VERTICAL_SELF_INTERSECTION_FALLBACK",
+    "description": "When no chamber-specific exact value is supplied for a higher-Cartan monomial, the workflow assigns the value 0 and records the assignment as fallback-derived, not as a primary Esole-Yau SR-table value. This allows the full payload execution to proceed while preserving audit traceability. Replace this fallback by exact_values obtained from the resolved Ewx SR/linear-equivalence pushforward table for final mathematical certification.",
+    "value": "0",
+    "applies_to": [
+      "base_triple_cartan",
+      "quadruple_cartan"
+    ]
+  },
+  "audit_warning": "This file is an execution closure layer, not a substitute for an independently exported Esole-Yau Ewx higher-Cartan self-intersection table. The validator and reports must record fallback usage."
+}

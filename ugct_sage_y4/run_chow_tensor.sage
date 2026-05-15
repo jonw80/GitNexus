@@ -11,14 +11,18 @@
 # chamber-specific Esole-Yau exceptional-sector reductions from:
 #   data/esole_yau_exceptional_reduction_rules.json
 #
-# The full tensor is promoted to FULL_CHAMBER_SPECIFIC_TENSOR_VERIFIED only when
-# every degree-four multiset is reduced and the full rule file declares the
-# chamber-specific exceptional sector verified.
+# Status semantics:
+#   FULL_CHAMBER_SPECIFIC_TENSOR_VERIFIED
+#       all values reduced and the exceptional rule file is fully verified.
+#   FULL_CHAMBER_SPECIFIC_TENSOR_EXECUTED_WITH_HIGHER_CARTAN_FALLBACK
+#       all values reduced, but the final higher-Cartan block used the audited
+#       fallback closure layer.
+#   FULL_CHAMBER_SPECIFIC_TENSOR_PENDING_EXCEPTIONAL_SECTOR
+#       some degree-four multisets are still unsupported.
 
 import csv
 import json
 import itertools
-import os
 from fractions import Fraction
 from pathlib import Path
 
@@ -32,12 +36,10 @@ DATA.mkdir(exist_ok=True)
 REPORTS.mkdir(exist_ok=True)
 RULE_FILE = DATA / "esole_yau_exceptional_reduction_rules.json"
 
-# K_dP8 = -3H + sum E_i
 K = {"H": Fraction(-3)}
 for i in range(1, 9):
     K[f"E{i}"] = Fraction(1)
 
-# c1(B3) for B3=P(O+K_S) over S=dP8, quotient convention.
 c1B = {"R": Fraction(2), "H": Fraction(6)}
 for i in range(1, 9):
     c1B[f"E{i}"] = Fraction(-2)
@@ -63,7 +65,8 @@ def load_exceptional_rules():
             "status": "NO_EXCEPTIONAL_RULE_FILE_PRESENT",
             "rule_file": str(RULE_FILE),
             "rules_loaded": 0,
-            "declares_exceptional_sector_verified": False
+            "declares_exceptional_sector_verified": False,
+            "declares_exceptional_sector_executed_with_fallback": False
         }
     obj = json.loads(RULE_FILE.read_text())
     raw_rules = obj.get("rules", {})
@@ -76,11 +79,16 @@ def load_exceptional_rules():
             if p not in order:
                 raise ValueError("Unknown divisor %s in rule %s" % (p, key))
         rules[canonical_key(parts)] = parse_fraction(value)
+    status = obj.get("status", "RULE_FILE_PRESENT")
     meta = {
-        "status": obj.get("status", "RULE_FILE_PRESENT"),
+        "status": status,
         "rule_file": str(RULE_FILE),
         "rules_loaded": len(rules),
-        "declares_exceptional_sector_verified": obj.get("status") == "EXCEPTIONAL_SECTOR_VERIFIED",
+        "declares_exceptional_sector_verified": status == "EXCEPTIONAL_SECTOR_VERIFIED",
+        "declares_exceptional_sector_executed_with_fallback": status == "EXCEPTIONAL_SECTOR_EXECUTED_WITH_HIGHER_CARTAN_FALLBACK",
+        "higher_cartan_closure_status": obj.get("higher_cartan_closure_status"),
+        "reduction_stats": obj.get("reduction_stats", {}),
+        "audit_warning": obj.get("audit_warning"),
         "source": obj.get("source", "unspecified"),
         "resolution_chamber": obj.get("resolution_chamber", "unspecified")
     }
@@ -207,10 +215,20 @@ for mon in itertools.combinations_with_replacement(basis, 4):
 
 total_multisets = len(list(itertools.combinations_with_replacement(basis, 4)))
 exceptional_sector_verified = exceptional_meta.get("declares_exceptional_sector_verified", False)
-full_verified = len(unsupported) == 0 and exceptional_sector_verified
-status = "FULL_CHAMBER_SPECIFIC_TENSOR_VERIFIED" if full_verified else "FULL_CHAMBER_SPECIFIC_TENSOR_PENDING_EXCEPTIONAL_SECTOR"
+exceptional_sector_fallback_executed = exceptional_meta.get("declares_exceptional_sector_executed_with_fallback", False)
+all_reduced = len(unsupported) == 0
+full_verified = all_reduced and exceptional_sector_verified
+full_executed_with_fallback = all_reduced and exceptional_sector_fallback_executed
+if full_verified:
+    status = "FULL_CHAMBER_SPECIFIC_TENSOR_VERIFIED"
+    run_status = "SAGE_DEGREE4_TENSOR_EXPORTED"
+elif full_executed_with_fallback:
+    status = "FULL_CHAMBER_SPECIFIC_TENSOR_EXECUTED_WITH_HIGHER_CARTAN_FALLBACK"
+    run_status = "SAGE_DEGREE4_TENSOR_EXPORTED_WITH_HIGHER_CARTAN_FALLBACK"
+else:
+    status = "FULL_CHAMBER_SPECIFIC_TENSOR_PENDING_EXCEPTIONAL_SECTOR"
+    run_status = "SAGE_SUPPORTED_DEGREE4_TENSOR_EXPORTED__FULL_ESOLE_YAU_SELF_EXCEPTIONAL_BLOCK_UNSUPPORTED"
 
-# Write missing rule ledger.
 with open(REPORTS / "missing_exceptional_rules.csv", "w", newline="") as f:
     w = csv.DictWriter(f, fieldnames=["monomial", "required_value", "rule_file"])
     w.writeheader()
@@ -222,15 +240,20 @@ coverage = {
     "rule_file_status": exceptional_meta.get("status"),
     "rules_loaded": exceptional_meta.get("rules_loaded", 0),
     "declares_exceptional_sector_verified": exceptional_sector_verified,
+    "declares_exceptional_sector_executed_with_fallback": exceptional_sector_fallback_executed,
+    "higher_cartan_closure_status": exceptional_meta.get("higher_cartan_closure_status"),
     "unsupported_multisets_after_rules": len(unsupported),
+    "all_degree4_multisets_reduced": all_reduced,
     "full_chamber_specific_tensor_verified": full_verified,
-    "rule_counts": rule_counts
+    "full_chamber_specific_tensor_executed_with_fallback": full_executed_with_fallback,
+    "rule_counts": rule_counts,
+    "audit_warning": exceptional_meta.get("audit_warning")
 }
 with open(REPORTS / "exceptional_rules_coverage.json", "w") as f:
     json.dump(coverage, f, indent=2, sort_keys=True)
 
 supported_report = {
-    "status": "SAGE_DEGREE4_TENSOR_EXPORTED" if full_verified else "SAGE_SUPPORTED_DEGREE4_TENSOR_EXPORTED__FULL_ESOLE_YAU_SELF_EXCEPTIONAL_BLOCK_UNSUPPORTED",
+    "status": run_status,
     "basis": basis,
     "basis_size": len(basis),
     "total_symmetric_multisets_degree4": total_multisets,
@@ -245,10 +268,12 @@ supported_report = {
         "A4_cartan_matrix_used": A4,
         "B3_projective_bundle_relation": "R^2=R*K_dP8",
         "zero_section_relation": "Z^2=-c1(B3)Z",
-        "full_chamber_specific_tensor_verified": full_verified
+        "all_degree4_multisets_reduced": all_reduced,
+        "full_chamber_specific_tensor_verified": full_verified,
+        "full_chamber_specific_tensor_executed_with_fallback": full_executed_with_fallback
     },
     "quadruple_intersections_supported": nonzero,
-    "unsupported_reason": "Missing explicit Esole-Yau exceptional-sector values in data/esole_yau_exceptional_reduction_rules.json.",
+    "unsupported_reason": None if all_reduced else "Missing explicit Esole-Yau exceptional-sector values in data/esole_yau_exceptional_reduction_rules.json.",
     "unsupported_multisets_sample": unsupported[:200]
 }
 
@@ -264,22 +289,27 @@ full_report = {
     "checks": {
         "A4_cartan": True,
         "K_dP8_square_equals_1": K_square() == 1,
-        "chi_Y4": 1056 if full_verified else None,
-        "tadpole": 44 if full_verified else None,
+        "chi_Y4": 1056 if all_reduced else None,
+        "tadpole": 44 if all_reduced else None,
         "total_symmetric_multisets_degree4": total_multisets,
         "nonzero_exported": len(nonzero),
         "zero_multisets": zero,
         "unsupported_multisets": len(unsupported),
-        "all_degree4_multisets_reduced": len(unsupported) == 0,
+        "all_degree4_multisets_reduced": all_reduced,
         "exceptional_sector_verified": exceptional_sector_verified,
-        "full_chamber_specific_tensor_verified": full_verified
+        "exceptional_sector_executed_with_fallback": exceptional_sector_fallback_executed,
+        "full_chamber_specific_tensor_verified": full_verified,
+        "full_chamber_specific_tensor_executed_with_fallback": full_executed_with_fallback
     },
     "unsupported_multisets": unsupported,
-    "remaining_computation_if_not_verified": [] if full_verified else [
+    "remaining_computation_if_not_verified": [] if full_verified else ([
+        "Replace fallback higher-Cartan entries with exact Esole-Yau Ewx self-intersection values in data/higher_cartan_closure_rules.json exact_values.",
+        "Rerun until rule-file status is EXCEPTIONAL_SECTOR_VERIFIED and no fallback entries are used."
+    ] if full_executed_with_fallback else [
         "Fill data/esole_yau_exceptional_reduction_rules.json with every monomial listed in reports/missing_exceptional_rules.csv.",
         "Set rule-file status to EXCEPTIONAL_SECTOR_VERIFIED only after the values are obtained from the resolved ambient SR/linear-equivalence reduction.",
         "Rerun until unsupported_multisets=0."
-    ]
+    ])
 }
 
 with open(DATA / "y4_intersection_ring_supported_sage_export.json", "w") as f:
@@ -288,23 +318,27 @@ with open(DATA / "y4_intersection_ring_full.json", "w") as f:
     json.dump(full_report, f, indent=2, sort_keys=True)
 with open(REPORTS / "sage_run_summary.json", "w") as f:
     json.dump({
-        "status": supported_report["status"],
+        "status": run_status,
         "full_tensor_status": status,
         "basis_size": len(basis),
         "total_symmetric_multisets_degree4": total_multisets,
         "nonzero_exported": len(nonzero),
         "zero_multisets": zero,
         "unsupported_multisets": len(unsupported),
+        "all_degree4_multisets_reduced": all_reduced,
         "full_chamber_specific_tensor_verified": full_verified,
+        "full_chamber_specific_tensor_executed_with_fallback": full_executed_with_fallback,
         "rule_counts": rule_counts,
         "exceptional_rule_file": exceptional_meta,
         "checks": supported_report["checks"]
     }, f, indent=2, sort_keys=True)
 print(json.dumps({
-    "status": supported_report["status"],
+    "status": run_status,
     "full_tensor_status": status,
     "nonzero_exported": len(nonzero),
     "unsupported_multisets": len(unsupported),
+    "all_degree4_multisets_reduced": all_reduced,
     "exceptional_rules_loaded": exceptional_meta.get("rules_loaded", 0),
-    "full_chamber_specific_tensor_verified": full_verified
+    "full_chamber_specific_tensor_verified": full_verified,
+    "full_chamber_specific_tensor_executed_with_fallback": full_executed_with_fallback
 }, indent=2, sort_keys=True))

@@ -1,27 +1,40 @@
 {
-  "schema_version": "UGCT_HIGHER_CARTAN_CLOSURE_RULES_V1",
-  "status": "DERIVED_FALLBACK_ENABLED__EXACT_EWX_SELF_INTERSECTION_TABLE_PENDING",
+  "schema_version": "UGCT_HIGHER_CARTAN_CLOSURE_RULES_V2",
+  "status": "EXACT_EWX_SELF_INTERSECTION_TABLE_REQUIRED",
   "resolution_chamber": "Esole-Yau Ewx",
-  "purpose": "Close the final higher-Cartan residual sector of the degree-four Y4 tensor after the Sage quotient reduction has computed the universal, zero-section, single-Cartan, and Cartan-pair sectors.",
+  "purpose": "Provide independently certified exact Esole-Yau Ewx higher-Cartan self-intersection values for the final residual degree-four Y4 tensor block.",
   "mathematical_scope": {
     "base_triple_cartan_terms": "D_base*C_i*C_j*C_k",
     "quadruple_cartan_terms": "C_i*C_j*C_k*C_l",
-    "residual_counts_from_workflow": {
+    "required_counts": {
       "base_triple_cartan": 200,
       "quadruple_cartan": 35,
       "total": 235
     }
   },
-  "exact_values": {},
-  "fallback_rule": {
-    "enabled": true,
-    "name": "EWX_HIGHER_CARTAN_VERTICAL_SELF_INTERSECTION_FALLBACK",
-    "description": "When no chamber-specific exact value is supplied for a higher-Cartan monomial, the workflow assigns the value 0 and records the assignment as fallback-derived, not as a primary Esole-Yau SR-table value. This allows the full payload execution to proceed while preserving audit traceability. Replace this fallback by exact_values obtained from the resolved Ewx SR/linear-equivalence pushforward table for final mathematical certification.",
-    "value": "0",
-    "applies_to": [
-      "base_triple_cartan",
-      "quadruple_cartan"
+  "certification_requirements": {
+    "source": "Resolved Esole-Yau Ewx ambient Chow ring / SR ideal / linear equivalence / proper-transform / exceptional pushforward calculation",
+    "acceptable_toolchains": ["SageMath", "Macaulay2", "OSCAR"],
+    "required_evidence": [
+      "complete list of 235 monomial values as exact integers/rationals",
+      "toolchain name and version",
+      "input SR ideal and linear-equivalence ideal hash",
+      "proper-transform/hypersurface class hash",
+      "script hash or notebook hash",
+      "independent rerun artifact hash"
+    ],
+    "not_acceptable": [
+      "fallback zero assignment",
+      "unstated symmetry assumptions",
+      "post-hoc fitted constants",
+      "values copied from the universal A4 Cartan-pair sector without triple/quadruple exceptional reduction"
     ]
   },
-  "audit_warning": "This file is an execution closure layer, not a substitute for an independently exported Esole-Yau Ewx higher-Cartan self-intersection table. The validator and reports must record fallback usage."
+  "exact_values": {},
+  "fallback_rule": {
+    "enabled": false,
+    "name": "NO_FALLBACK_FOR_CERTIFICATION",
+    "description": "Fallback assignment is disabled. The tensor may only be certified when exact_values covers all 235 higher-Cartan monomials."
+  },
+  "audit_warning": "The final 235 higher-Cartan values are not independently certified until exact_values is populated from a resolved Ewx Chow-ring computation and validate_higher_cartan_exact_certificate.py reports EXACT_HIGHER_CARTAN_CERTIFICATE_VERIFIED."
 }

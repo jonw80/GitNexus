@@ -6,13 +6,16 @@ as an open-source Wolfram-language evaluator. It loads the public Jefferson-
 Turner IntersectionNumbers.m package, evaluates the A4/SU(5) pushforward calls,
 and writes data/higher_cartan_closure_rules.json if successful.
 
-The script is intentionally conservative: if Mathics or the package call fails,
-it writes a NOT_RUN/FAILED report and exits 0 so the rest of the audit workflow
-can still report the exact blocker.
+This version removes execution blockers seen on hosted runners:
+  * it self-installs Mathics3 if import fails;
+  * it passes absolute paths into the Mathics kernel;
+  * it emits package/cartesian-class diagnostics when setup fails.
 """
 import hashlib
 import itertools
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 DATA = Path("data")
@@ -58,14 +61,25 @@ def to_python_string(x):
 def ckey(parts):
     return ",".join(sorted(parts, key=lambda p: ORDER[p]))
 
+def import_mathics_session():
+    try:
+        from mathics.session import MathicsSession
+        return MathicsSession, None
+    except Exception as first_exc:
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "--user", "--no-input", "mathics3"])
+            from mathics.session import MathicsSession
+            return MathicsSession, None
+        except Exception as second_exc:
+            return None, f"initial import: {first_exc}; install/import retry: {second_exc}"
+
 if not PKG.exists():
     write_report("MATHICS_EWX_NOT_RUN", reason="sources/IntersectionNumbers.m missing")
     raise SystemExit(0)
 
-try:
-    from mathics.session import MathicsSession
-except Exception as exc:
-    write_report("MATHICS_EWX_NOT_RUN", reason="Mathics3 is not importable", exception=str(exc))
+MathicsSession, import_error = import_mathics_session()
+if MathicsSession is None:
+    write_report("MATHICS_EWX_NOT_RUN", reason="Mathics3 is not importable/installable", exception=import_error)
     raise SystemExit(0)
 
 session = MathicsSession()
@@ -76,9 +90,14 @@ def ev(code: str):
 def ev_string(code: str) -> str:
     return to_python_string(ev(f"ToString[InputForm[{code}]]"))
 
-setup = r'''
-SetDirectory[Directory[]];
-Get["sources/IntersectionNumbers.m"];
+workdir = Path.cwd().resolve()
+pkg_abs = PKG.resolve()
+workdir_wl = json.dumps(str(workdir).replace("\\", "/"))
+pkg_wl = json.dumps(str(pkg_abs).replace("\\", "/"))
+
+setup_template = r'''
+SetDirectory[__WORKDIR__];
+Get[__PKG__];
 baseVars = {r,h,ee1,ee2,ee3,ee4,ee5,ee6,ee7,ee8};
 Lclass = 2*r + 6*h - 2*(ee1+ee2+ee3+ee4+ee5+ee6+ee7+ee8);
 Sclass = r;
@@ -107,15 +126,39 @@ ratString[x_] := Module[{y = Together[x]}, If[Denominator[y] === 1, ToString[Num
 cartanClasses = divisors[{a,4}];
 pushBase[expr_] := Expand[push[{a,4}, pushFunction -> expr] /. baseSubstitution];
 '''
+setup = setup_template.replace("__WORKDIR__", workdir_wl).replace("__PKG__", pkg_wl)
+
 try:
     ev(setup)
     cartan_len = ev_string("Length[cartanClasses]")
 except Exception as exc:
-    write_report("MATHICS_EWX_SETUP_FAILED", exception=str(exc))
+    write_report(
+        "MATHICS_EWX_SETUP_FAILED",
+        exception=str(exc),
+        workdir=str(workdir),
+        package=str(pkg_abs),
+        package_sha256=sha256_file(PKG),
+    )
     raise SystemExit(0)
 
 if cartan_len.strip() != "4":
-    write_report("MATHICS_EWX_SETUP_FAILED", reason="divisors[{a,4}] did not return four Cartan classes", cartan_length=cartan_len)
+    diagnostics = {}
+    for label, code in {
+        "cartan_classes": "cartanClasses",
+        "divisors_a4": "divisors[{a,4}]",
+        "known_global_names": "Names[\"Global`*\"]",
+    }.items():
+        try:
+            diagnostics[label] = ev_string(code)
+        except Exception as exc:
+            diagnostics[label] = f"diagnostic failed: {exc}"
+    write_report(
+        "MATHICS_EWX_SETUP_FAILED",
+        reason="divisors[{a,4}] did not return four Cartan classes",
+        cartan_length=cartan_len,
+        diagnostics=diagnostics,
+        package_sha256=sha256_file(PKG),
+    )
     raise SystemExit(0)
 
 values = {}
@@ -132,7 +175,7 @@ for base in BASE_NAMES:
         try:
             values[key] = ev_string(code)
         except Exception as exc:
-            errors[key] = str(exc)
+            errors[key] = {"exception": str(exc), "code": code}
             if len(errors) >= 20:
                 break
     if len(errors) >= 20:
@@ -146,7 +189,7 @@ if not errors:
         try:
             values[key] = ev_string(code)
         except Exception as exc:
-            errors[key] = str(exc)
+            errors[key] = {"exception": str(exc), "code": code}
             if len(errors) >= 20:
                 break
 
@@ -156,12 +199,13 @@ if errors:
         computed_count=len(values),
         error_count=len(errors),
         error_sample=errors,
-        note="Mathics could not complete the same IntersectionNumbers.m calls. Use wolframscript or inspect the Mathics incompatibility."
+        package_sha256=sha256_file(PKG),
+        note="Mathics could not complete the same IntersectionNumbers.m calls. The workflow is now reaching the math call; inspect this error sample."
     )
     raise SystemExit(0)
 
 if len(values) != 235:
-    write_report("MATHICS_EWX_EXACT_VALUES_INCOMPLETE", value_count=len(values), expected=235)
+    write_report("MATHICS_EWX_EXACT_VALUES_INCOMPLETE", value_count=len(values), expected=235, package_sha256=sha256_file(PKG))
     raise SystemExit(0)
 
 pkg_hash = sha256_file(PKG)

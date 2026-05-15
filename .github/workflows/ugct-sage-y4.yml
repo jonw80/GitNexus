@@ -23,6 +23,19 @@ jobs:
       - name: Fetch IntersectionNumbers ancillary package
         working-directory: ugct_sage_y4
         run: python3 fetch_intersectionnumbers_ancillary.py
+      - name: Try Wolfram IntersectionNumbers Ewx driver
+        working-directory: ugct_sage_y4
+        run: |
+          if command -v wolframscript >/dev/null 2>&1; then
+            wolframscript -file run_intersectionnumbers_ewx.wls || true
+          else
+            mkdir -p reports
+            printf '{"status":"WOLFRAMSCRIPT_NOT_AVAILABLE","driver":"run_intersectionnumbers_ewx.wls"}\n' > reports/intersectionnumbers_ewx_run_report.json
+            cat reports/intersectionnumbers_ewx_run_report.json
+          fi
+      - name: Try pure Sage resolved-presentation export
+        working-directory: ugct_sage_y4
+        run: sage -python export_higher_cartan_from_resolved_presentation.sage
       - name: Compute exact higher-Cartan Ewx values
         working-directory: ugct_sage_y4
         run: sage -python compute_higher_cartan_exact_values.sage
@@ -52,3 +65,4 @@ jobs:
             ugct_sage_y4/reports/*.csv
             ugct_sage_y4/sources/*.m
             ugct_sage_y4/sources/*.nb
+            ugct_sage_y4/*.wls

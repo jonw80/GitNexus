@@ -20,6 +20,9 @@ jobs:
       - name: Bootstrap Esole-Yau source data
         working-directory: ugct_sage_y4
         run: python3 bootstrap_esole_yau_sources.py
+      - name: Compute exact higher-Cartan Ewx values
+        working-directory: ugct_sage_y4
+        run: sage -python compute_higher_cartan_exact_values.sage
       - name: Compute Esole-Yau exceptional Chow rules
         working-directory: ugct_sage_y4
         run: sage -python compute_exceptional_rules_from_chow.sage

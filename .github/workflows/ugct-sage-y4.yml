@@ -36,6 +36,11 @@ jobs:
             printf '{"status":"WOLFRAMSCRIPT_NOT_AVAILABLE","driver":"run_intersectionnumbers_ewx.wls"}\n' > reports/intersectionnumbers_ewx_run_report.json
             cat reports/intersectionnumbers_ewx_run_report.json
           fi
+      - name: Install Mathics fallback
+        run: python3 -m pip install --user --no-input mathics3
+      - name: Try Mathics IntersectionNumbers Ewx driver
+        working-directory: ugct_sage_y4
+        run: python3 run_intersectionnumbers_ewx_mathics.py
       - name: Try pure Sage resolved-presentation export
         working-directory: ugct_sage_y4
         run: sage -python export_higher_cartan_from_resolved_presentation.sage

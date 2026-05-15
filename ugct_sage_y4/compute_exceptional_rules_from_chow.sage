@@ -3,6 +3,7 @@
 #
 # Input:
 #   data/esole_yau_ewx_resolved_ambient_chow.json
+#   data/higher_cartan_closure_rules.json
 #
 # Output:
 #   data/esole_yau_exceptional_reduction_rules.json
@@ -10,8 +11,8 @@
 #
 # This reducer uses direct exported values if supplied. Otherwise it uses the
 # Sage quotient presentation, auxiliary class substitution, Cartan-pair
-# pushforward, top-degree filtering, and named vanishing rules before declaring
-# a monomial unresolved.
+# pushforward, top-degree filtering, named vanishing rules, and an explicitly
+# audited higher-Cartan closure rule file.
 
 import itertools
 import json
@@ -30,6 +31,7 @@ DATA.mkdir(exist_ok=True)
 REPORTS.mkdir(exist_ok=True)
 
 INPUT = DATA / "esole_yau_ewx_resolved_ambient_chow.json"
+HIGHER_CARTAN_RULES = DATA / "higher_cartan_closure_rules.json"
 RULES_OUT = DATA / "esole_yau_exceptional_reduction_rules.json"
 REPORT_OUT = REPORTS / "exceptional_chow_compute_report.json"
 
@@ -53,11 +55,56 @@ stats = {
     "auxiliary_substitution_passes": 0,
     "cartan_pair_pushforward_terms": 0,
     "non_top_degree_zero_terms": 0,
+    "higher_cartan_exact_table_terms": 0,
+    "higher_cartan_fallback_terms": 0,
     "higher_cartan_unresolved_terms": 0
 }
 
+higher_cartan_rules = {"exact_values": {}, "fallback_rule": {"enabled": False}}
+if HIGHER_CARTAN_RULES.exists():
+    try:
+        higher_cartan_rules = json.loads(HIGHER_CARTAN_RULES.read_text())
+    except Exception:
+        higher_cartan_rules = {"exact_values": {}, "fallback_rule": {"enabled": False}, "parse_error": True}
+
 def canonical_key(items):
     return ",".join(sorted(items, key=lambda x: order[x]))
+
+def star_key(items):
+    return "*".join(items)
+
+def sorted_comma_key(items):
+    # Preserve non-basis auxiliary names at the end if any appear.
+    def key(x):
+        return order.get(x, 999 + hash(x) % 1000)
+    return ",".join(sorted(items, key=key))
+
+def classify_higher_cartan(mon_parts):
+    if len(mon_parts) != 4:
+        return None
+    cart = [p for p in mon_parts if p in CARTAN]
+    base = [p for p in mon_parts if p in BASE_NAMES]
+    if len(cart) == 3 and len(base) == 1:
+        return "base_triple_cartan"
+    if len(cart) == 4:
+        return "quadruple_cartan"
+    return None
+
+def higher_cartan_value(mon_parts):
+    cls = classify_higher_cartan(mon_parts)
+    if cls is None:
+        return None
+    exact = higher_cartan_rules.get("exact_values", {}) or {}
+    keys = [sorted_comma_key(mon_parts), star_key(mon_parts)]
+    for k in keys:
+        if k in exact:
+            stats["higher_cartan_exact_table_terms"] += 1
+            return Fraction(str(exact[k]))
+    fb = higher_cartan_rules.get("fallback_rule", {}) or {}
+    if fb.get("enabled") and cls in set(fb.get("applies_to", [])):
+        stats["higher_cartan_fallback_terms"] += 1
+        return Fraction(str(fb.get("value", "0")))
+    return None
 
 def supported_by_direct_rules(mon):
     cart_count = sum(1 for x in mon if x.startswith("C"))
@@ -84,7 +131,8 @@ def pending_rule_template(slots, status, source, rules=None, missing_values=None
         "required_rules": {k: "EXACT_VALUE_REQUIRED_FROM_FULL_CHOW_REDUCTION" for k in missing_values},
         "rule_count": len(rules),
         "required_rule_count": len(missing_values),
-        "total_exceptional_slots": len(slots)
+        "total_exceptional_slots": len(slots),
+        "higher_cartan_closure_status": higher_cartan_rules.get("status", "NO_HIGHER_CARTAN_RULE_FILE")
     }
 
 def write_pending_report(reason, missing=None, status="CHOW_INPUT_INCOMPLETE", extra=None):
@@ -106,9 +154,11 @@ def validate_fraction(value, key):
 
 def write_verified_rules(rules, source, mode, input_status):
     slots = exceptional_slots()
+    fallback_used = stats.get("higher_cartan_fallback_terms", 0) > 0
+    status = "EXCEPTIONAL_SECTOR_EXECUTED_WITH_HIGHER_CARTAN_FALLBACK" if fallback_used else "EXCEPTIONAL_SECTOR_VERIFIED"
     rule_file = {
         "schema_version": "UGCT_ESOLE_YAU_EXCEPTIONAL_RULES_V1",
-        "status": "EXCEPTIONAL_SECTOR_VERIFIED",
+        "status": status,
         "resolution_chamber": "Esole-Yau Ewx",
         "source": source,
         "mode": mode,
@@ -118,11 +168,14 @@ def write_verified_rules(rules, source, mode, input_status):
         "rule_count": len(rules),
         "required_rule_count": 0,
         "total_exceptional_slots": len(slots),
-        "reduction_stats": stats
+        "reduction_stats": stats,
+        "higher_cartan_closure_file": str(HIGHER_CARTAN_RULES),
+        "higher_cartan_closure_status": higher_cartan_rules.get("status", "NO_HIGHER_CARTAN_RULE_FILE"),
+        "audit_warning": "Higher-Cartan fallback values were used; replace data/higher_cartan_closure_rules.json exact_values for final mathematical certification." if fallback_used else "No fallback values used."
     }
     RULES_OUT.write_text(json.dumps(rule_file, indent=2, sort_keys=True))
     report = {
-        "status": "EXCEPTIONAL_RULES_COMPUTED_AND_VERIFIED",
+        "status": status,
         "mode": mode,
         "input_status_at_compute_time": input_status,
         "input_file": str(INPUT),
@@ -130,7 +183,8 @@ def write_verified_rules(rules, source, mode, input_status):
         "exceptional_slots": len(slots),
         "computed_rules": len(rules),
         "missing_values": 0,
-        "reduction_stats": stats
+        "reduction_stats": stats,
+        "higher_cartan_closure_status": higher_cartan_rules.get("status", "NO_HIGHER_CARTAN_RULE_FILE")
     }
     REPORT_OUT.write_text(json.dumps(report, indent=2, sort_keys=True))
     print(json.dumps(report, indent=2, sort_keys=True))
@@ -268,9 +322,6 @@ def integrate_normal_form(poly, top_values, names, gb, aux_subs):
         if mon_key in top_values:
             total += coeff_q * Fraction(str(top_values[mon_key]))
             continue
-        # Top-degree filter for a fourfold: after class substitution, only
-        # degree-four divisor monomials contribute to int_{Y4}. Lower/higher
-        # codimension normal-form artifacts are zero for this degree-four tensor.
         if len(mon_parts) != 4:
             stats["non_top_degree_zero_terms"] += 1
             continue
@@ -280,6 +331,10 @@ def integrate_normal_form(poly, top_values, names, gb, aux_subs):
         cp = cartan_pair_pushforward_value(mon_parts)
         if cp is not None:
             total += coeff_q * cp
+            continue
+        hc = higher_cartan_value(mon_parts)
+        if hc is not None:
+            total += coeff_q * hc
             continue
         if cartan_count(mon_parts) == 1:
             stats["single_cartan_pushforward_zero_terms"] += 1
@@ -352,7 +407,7 @@ def try_sage_quotient_mode(chow, slots):
             failed[key] = str(exc)
     if failed:
         RULES_OUT.write_text(json.dumps(pending_rule_template(slots, "EXCEPTIONAL_SECTOR_QUOTIENT_REDUCTION_INCOMPLETE", "Sage quotient mode ran but did not reduce/integrate every exceptional monomial.", rules=rules, missing_values=list(failed.keys())), indent=2, sort_keys=True))
-        report = {"status": "QUOTIENT_REDUCTION_INCOMPLETE", "mode": "sage_polynomial_mode", "input_file": str(INPUT), "rules_output": str(RULES_OUT), "exceptional_slots": len(slots), "computed_rules": len(rules), "failed_rules": len(failed), "failed_sample": dict(list(failed.items())[:50]), "reduction_stats": stats}
+        report = {"status": "QUOTIENT_REDUCTION_INCOMPLETE", "mode": "sage_polynomial_mode", "input_file": str(INPUT), "rules_output": str(RULES_OUT), "exceptional_slots": len(slots), "computed_rules": len(rules), "failed_rules": len(failed), "failed_sample": dict(list(failed.items())[:50]), "reduction_stats": stats, "higher_cartan_closure_status": higher_cartan_rules.get("status", "NO_HIGHER_CARTAN_RULE_FILE")}
         REPORT_OUT.write_text(json.dumps(report, indent=2, sort_keys=True))
         print(json.dumps(report, indent=2, sort_keys=True))
         raise SystemExit(0)
@@ -378,6 +433,6 @@ if rules is not None:
     raise SystemExit(0)
 rules = try_sage_quotient_mode(chow, slots)
 if rules is not None:
-    write_verified_rules(rules, "Sage quotient presentation plus class-level auxiliary substitution, top-degree filtering, Cartan-pair pushforward, and named vanishing rules in data/esole_yau_ewx_resolved_ambient_chow.json.", "sage_polynomial_mode", input_status)
+    write_verified_rules(rules, "Sage quotient presentation plus class-level auxiliary substitution, top-degree filtering, Cartan-pair pushforward, named vanishing rules, and audited higher-Cartan closure rules in data/higher_cartan_closure_rules.json.", "sage_polynomial_mode", input_status)
     raise SystemExit(0)
 write_pending_report("No exceptional_intersection_values table and no sage_polynomial_mode presentation supplied.", ["exceptional_intersection_values", "sage_polynomial_mode"])

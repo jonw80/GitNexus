@@ -7,13 +7,15 @@ Turner IntersectionNumbers.m package, evaluates the A4/SU(5) pushforward calls,
 and writes data/higher_cartan_closure_rules.json if successful.
 
 This version removes execution blockers seen on hosted runners:
-  * it self-installs Mathics3 if import fails;
+  * the workflow runs it with sage -python;
+  * it self-installs Mathics3 if import fails, trying Sage pip paths too;
   * it passes absolute paths into the Mathics kernel;
   * it emits package/cartesian-class diagnostics when setup fails.
 """
 import hashlib
 import itertools
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -61,17 +63,38 @@ def to_python_string(x):
 def ckey(parts):
     return ",".join(sorted(parts, key=lambda p: ORDER[p]))
 
+def run_install_commands():
+    commands = []
+    commands.append([sys.executable, "-m", "pip", "install", "--no-input", "mathics3"])
+    commands.append([sys.executable, "-m", "pip", "install", "--user", "--no-input", "mathics3"])
+    sage = shutil.which("sage")
+    if sage:
+        commands.append([sage, "-pip", "install", "--no-input", "mathics3"])
+        commands.append([sage, "-pip", "install", "--user", "--no-input", "mathics3"])
+        commands.append([sage, "-python", "-m", "pip", "install", "--no-input", "mathics3"])
+        commands.append([sage, "-python", "-m", "pip", "install", "--user", "--no-input", "mathics3"])
+    errors = []
+    for cmd in commands:
+        try:
+            subprocess.check_call(cmd)
+            return True, {"command": cmd}
+        except Exception as exc:
+            errors.append({"command": cmd, "error": str(exc)})
+    return False, {"attempts": errors}
+
 def import_mathics_session():
     try:
         from mathics.session import MathicsSession
         return MathicsSession, None
     except Exception as first_exc:
+        installed, detail = run_install_commands()
+        if not installed:
+            return None, {"initial_import": str(first_exc), "install_detail": detail}
         try:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", "--user", "--no-input", "mathics3"])
             from mathics.session import MathicsSession
             return MathicsSession, None
         except Exception as second_exc:
-            return None, f"initial import: {first_exc}; install/import retry: {second_exc}"
+            return None, {"initial_import": str(first_exc), "install_detail": detail, "post_install_import": str(second_exc)}
 
 if not PKG.exists():
     write_report("MATHICS_EWX_NOT_RUN", reason="sources/IntersectionNumbers.m missing")
@@ -79,7 +102,7 @@ if not PKG.exists():
 
 MathicsSession, import_error = import_mathics_session()
 if MathicsSession is None:
-    write_report("MATHICS_EWX_NOT_RUN", reason="Mathics3 is not importable/installable", exception=import_error)
+    write_report("MATHICS_EWX_NOT_RUN", reason="Mathics3 is not importable/installable", exception=import_error, python=sys.executable)
     raise SystemExit(0)
 
 session = MathicsSession()
@@ -138,6 +161,7 @@ except Exception as exc:
         workdir=str(workdir),
         package=str(pkg_abs),
         package_sha256=sha256_file(PKG),
+        python=sys.executable,
     )
     raise SystemExit(0)
 
@@ -158,6 +182,7 @@ if cartan_len.strip() != "4":
         cartan_length=cartan_len,
         diagnostics=diagnostics,
         package_sha256=sha256_file(PKG),
+        python=sys.executable,
     )
     raise SystemExit(0)
 
@@ -200,12 +225,13 @@ if errors:
         error_count=len(errors),
         error_sample=errors,
         package_sha256=sha256_file(PKG),
+        python=sys.executable,
         note="Mathics could not complete the same IntersectionNumbers.m calls. The workflow is now reaching the math call; inspect this error sample."
     )
     raise SystemExit(0)
 
 if len(values) != 235:
-    write_report("MATHICS_EWX_EXACT_VALUES_INCOMPLETE", value_count=len(values), expected=235, package_sha256=sha256_file(PKG))
+    write_report("MATHICS_EWX_EXACT_VALUES_INCOMPLETE", value_count=len(values), expected=235, package_sha256=sha256_file(PKG), python=sys.executable)
     raise SystemExit(0)
 
 pkg_hash = sha256_file(PKG)
@@ -238,4 +264,5 @@ write_report(
     package_hash="sha256:" + pkg_hash,
     script_hash="sha256:" + script_hash,
     value_hash="sha256:" + value_hash,
+    python=sys.executable,
 )

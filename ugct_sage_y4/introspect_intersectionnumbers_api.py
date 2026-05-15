@@ -28,10 +28,8 @@ report = {
 
 if PKG.exists():
     text = PKG.read_text(errors="ignore")
-    # Mathematica usage messages: Symbol::usage = "..."
     usage = re.findall(r'([A-Za-z$][A-Za-z0-9$]*)::usage\s*=\s*"([\s\S]*?)"\s*;', text)
     report["usage_symbols"] = [{"symbol": s, "usage": u[:1000]} for s, u in usage]
-    # Function definitions / options / package exports.
     defs = sorted(set(re.findall(r'\n([A-Za-z$][A-Za-z0-9$]*)\s*(?:\[|:=|=|::)', text)))
     interesting = [d for d in defs if re.search(r'Tate|Intersect|Generate|Resolve|Blow|Push|Divisor|Cartan|SU|SO|Sp|E[0-9]', d, re.I)]
     report["candidate_definitions"] = interesting[:500]
@@ -59,4 +57,15 @@ lines += ["", "## Example call snippets", ""]
 for ex in report["example_call_lines"][:25]:
     lines.append(f"### line {ex['line']}\n```mathematica\n{ex['snippet']}\n```\n")
 MD.write_text("\n".join(lines))
-print(json.dumps({"status": report["status"], "usage_symbol_count": len(report["usage_symbols"]), "candidate_definition_count": len(report["candidate_definitions"]), "example_snippet_count": len(report["example_call_lines"])}, indent=2, sort_keys=True))
+
+console = {
+    "status": report["status"],
+    "usage_symbol_count": len(report["usage_symbols"]),
+    "candidate_definition_count": len(report["candidate_definitions"]),
+    "example_snippet_count": len(report["example_call_lines"]),
+    "candidate_definitions": report["candidate_definitions"][:50],
+    "example_snippets_preview": [
+        {"line": x["line"], "snippet": x["snippet"][:800]} for x in report["example_call_lines"][:5]
+    ]
+}
+print(json.dumps(console, indent=2, sort_keys=True))

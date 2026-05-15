@@ -37,10 +37,13 @@ jobs:
             cat reports/intersectionnumbers_ewx_run_report.json
           fi
       - name: Preinstall Mathics fallback if possible
-        run: python3 -m pip install --user --no-input mathics3 || true
+        run: |
+          sage -pip install --no-input mathics3 || \
+          sage -python -m pip install --no-input mathics3 || \
+          python3 -m pip install --user --no-input mathics3 || true
       - name: Try Mathics IntersectionNumbers Ewx driver
         working-directory: ugct_sage_y4
-        run: python3 run_intersectionnumbers_ewx_mathics.py
+        run: sage -python run_intersectionnumbers_ewx_mathics.py
       - name: Try pure Sage resolved-presentation export
         working-directory: ugct_sage_y4
         run: sage -python export_higher_cartan_from_resolved_presentation.sage

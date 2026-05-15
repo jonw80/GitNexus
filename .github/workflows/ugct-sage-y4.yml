@@ -23,6 +23,9 @@ jobs:
       - name: Fetch IntersectionNumbers ancillary package
         working-directory: ugct_sage_y4
         run: python3 fetch_intersectionnumbers_ancillary.py
+      - name: Introspect IntersectionNumbers API
+        working-directory: ugct_sage_y4
+        run: python3 introspect_intersectionnumbers_api.py
       - name: Try Wolfram IntersectionNumbers Ewx driver
         working-directory: ugct_sage_y4
         run: |

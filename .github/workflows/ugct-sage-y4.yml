@@ -26,6 +26,9 @@ jobs:
       - name: Extract higher-Cartan residual requirements
         working-directory: ugct_sage_y4
         run: python3 extract_higher_cartan_requirements.py
+      - name: Validate higher-Cartan exact certificate
+        working-directory: ugct_sage_y4
+        run: python3 validate_higher_cartan_exact_certificate.py
       - name: Run UGCT Y4 Chow tensor export
         working-directory: ugct_sage_y4
         run: sage -python run_chow_tensor.sage

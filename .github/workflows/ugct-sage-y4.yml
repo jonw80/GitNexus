@@ -23,6 +23,9 @@ jobs:
       - name: Compute Esole-Yau exceptional Chow rules
         working-directory: ugct_sage_y4
         run: sage -python compute_exceptional_rules_from_chow.sage
+      - name: Extract higher-Cartan residual requirements
+        working-directory: ugct_sage_y4
+        run: python3 extract_higher_cartan_requirements.py
       - name: Run UGCT Y4 Chow tensor export
         working-directory: ugct_sage_y4
         run: sage -python run_chow_tensor.sage

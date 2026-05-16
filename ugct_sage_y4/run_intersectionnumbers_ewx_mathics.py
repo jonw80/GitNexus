@@ -6,13 +6,12 @@ as an open-source Wolfram-language evaluator. It loads the public Jefferson-
 Turner IntersectionNumbers.m package, evaluates the A4/SU(5) pushforward calls,
 and writes data/higher_cartan_closure_rules.json if successful.
 
-This version removes execution blockers seen on hosted runners:
-  * the workflow runs it with sage -python;
-  * it installs a pre-10 Mathics line when possible, because Mathics3 10.0.1
-    has crashed during MathicsSession() initialization in the Sage container;
-  * it catches MathicsSession() startup failure and writes a JSON report;
-  * it passes absolute paths into the Mathics kernel;
-  * it emits package/cartesian-class diagnostics when setup fails.
+Execution notes for the Sage container:
+  * run with sage -python;
+  * use mathics3<10 because Mathics3 10.0.1 crashes at MathicsSession startup;
+  * install legacy setuptools<81 so pkg_resources exists for Mathics 9;
+  * call IntersectionNumbers` symbols explicitly because Mathics does not always
+    add BeginPackage exports to the active context path.
 """
 import hashlib
 import itertools
@@ -32,6 +31,7 @@ PKG = SOURCES / "IntersectionNumbers.m"
 OUT = DATA / "higher_cartan_closure_rules.json"
 REPORT = REPORTS / "intersectionnumbers_ewx_mathics_report.json"
 MATHICS_SPEC = "mathics3<10"
+SETUPTOOLS_SPEC = "setuptools<81"
 
 BASE_NAMES = ["R", "H"] + [f"E{i}" for i in range(1, 9)]
 BASE_SYMS = {"R": "r", "H": "h", **{f"E{i}": f"ee{i}" for i in range(1, 9)}}
@@ -67,15 +67,16 @@ def ckey(parts):
     return ",".join(sorted(parts, key=lambda p: ORDER[p]))
 
 def run_install_commands():
+    install_specs = [SETUPTOOLS_SPEC, MATHICS_SPEC]
     commands = []
-    commands.append([sys.executable, "-m", "pip", "install", "--no-input", "--force-reinstall", MATHICS_SPEC])
-    commands.append([sys.executable, "-m", "pip", "install", "--user", "--no-input", "--force-reinstall", MATHICS_SPEC])
+    commands.append([sys.executable, "-m", "pip", "install", "--no-input", "--force-reinstall", *install_specs])
+    commands.append([sys.executable, "-m", "pip", "install", "--user", "--no-input", "--force-reinstall", *install_specs])
     sage = shutil.which("sage")
     if sage:
-        commands.append([sage, "-pip", "install", "--no-input", "--force-reinstall", MATHICS_SPEC])
-        commands.append([sage, "-pip", "install", "--user", "--no-input", "--force-reinstall", MATHICS_SPEC])
-        commands.append([sage, "-python", "-m", "pip", "install", "--no-input", "--force-reinstall", MATHICS_SPEC])
-        commands.append([sage, "-python", "-m", "pip", "install", "--user", "--no-input", "--force-reinstall", MATHICS_SPEC])
+        commands.append([sage, "-pip", "install", "--no-input", "--force-reinstall", *install_specs])
+        commands.append([sage, "-pip", "install", "--user", "--no-input", "--force-reinstall", *install_specs])
+        commands.append([sage, "-python", "-m", "pip", "install", "--no-input", "--force-reinstall", *install_specs])
+        commands.append([sage, "-python", "-m", "pip", "install", "--user", "--no-input", "--force-reinstall", *install_specs])
     errors = []
     for cmd in commands:
         try:
@@ -87,6 +88,7 @@ def run_install_commands():
 
 def import_mathics_session():
     try:
+        import pkg_resources  # noqa: F401 - required by Mathics 9 builtins
         from mathics.session import MathicsSession
         return MathicsSession, None
     except Exception as first_exc:
@@ -94,6 +96,7 @@ def import_mathics_session():
         if not installed:
             return None, {"initial_import": str(first_exc), "install_detail": detail}
         try:
+            import pkg_resources  # noqa: F401
             from mathics.session import MathicsSession
             return MathicsSession, None
         except Exception as second_exc:
@@ -105,7 +108,7 @@ if not PKG.exists():
 
 MathicsSession, import_error = import_mathics_session()
 if MathicsSession is None:
-    write_report("MATHICS_EWX_NOT_RUN", reason="Mathics3 is not importable/installable", exception=import_error, python=sys.executable, mathics_spec=MATHICS_SPEC)
+    write_report("MATHICS_EWX_NOT_RUN", reason="Mathics3/pkg_resources is not importable/installable", exception=import_error, python=sys.executable, mathics_spec=MATHICS_SPEC, setuptools_spec=SETUPTOOLS_SPEC)
     raise SystemExit(0)
 
 try:
@@ -117,6 +120,7 @@ except Exception as exc:
         exception=repr(exc),
         python=sys.executable,
         mathics_spec=MATHICS_SPEC,
+        setuptools_spec=SETUPTOOLS_SPEC,
         package_present=PKG.exists(),
         package_sha256=sha256_file(PKG) if PKG.exists() else None,
         workaround="Use wolframscript/self-hosted Wolfram Engine or a pure Sage resolved-presentation input; Mathics could not initialize in this Sage container."
@@ -162,8 +166,8 @@ intExp[exps_List] := Module[{rct, surf, surfDegree, positions, pos},
 ];
 integrateB3[poly_] := Module[{rules, expanded}, expanded = Expand[poly]; rules = CoefficientRules[expanded, baseVars]; Total[(#[[2]] * intExp[#[[1]]]) & /@ rules]];
 ratString[x_] := Module[{y = Together[x]}, If[Denominator[y] === 1, ToString[Numerator[y]], ToString[Numerator[y]] <> "/" <> ToString[Denominator[y]]]];
-cartanClasses = divisors[{a,4}];
-pushBase[expr_] := Expand[push[{a,4}, pushFunction -> expr] /. baseSubstitution];
+cartanClasses = IntersectionNumbers`divisors[{a,4}];
+pushBase[expr_] := Expand[IntersectionNumbers`push[{a,4}, IntersectionNumbers`pushFunction -> expr] /. baseSubstitution];
 '''
 setup = setup_template.replace("__WORKDIR__", workdir_wl).replace("__PKG__", pkg_wl)
 
@@ -179,14 +183,18 @@ except Exception as exc:
         package_sha256=sha256_file(PKG),
         python=sys.executable,
         mathics_spec=MATHICS_SPEC,
+        setuptools_spec=SETUPTOOLS_SPEC,
     )
     raise SystemExit(0)
 
-if cartan_len.strip() != "4":
+if cartan_len.strip().strip('"') != "4":
     diagnostics = {}
     for label, code in {
         "cartan_classes": "cartanClasses",
-        "divisors_a4": "divisors[{a,4}]",
+        "divisors_a4_qualified": "IntersectionNumbers`divisors[{a,4}]",
+        "divisors_a4_unqualified": "divisors[{a,4}]",
+        "intersectionnumbers_names": "Names[\"IntersectionNumbers`*\"]",
+        "context_path": "$ContextPath",
         "known_global_names": "Names[\"Global`*\"]",
     }.items():
         try:
@@ -195,12 +203,13 @@ if cartan_len.strip() != "4":
             diagnostics[label] = f"diagnostic failed: {exc}"
     write_report(
         "MATHICS_EWX_SETUP_FAILED",
-        reason="divisors[{a,4}] did not return four Cartan classes",
+        reason="IntersectionNumbers`divisors[{a,4}] did not return four Cartan classes",
         cartan_length=cartan_len,
         diagnostics=diagnostics,
         package_sha256=sha256_file(PKG),
         python=sys.executable,
         mathics_spec=MATHICS_SPEC,
+        setuptools_spec=SETUPTOOLS_SPEC,
     )
     raise SystemExit(0)
 
@@ -245,12 +254,13 @@ if errors:
         package_sha256=sha256_file(PKG),
         python=sys.executable,
         mathics_spec=MATHICS_SPEC,
+        setuptools_spec=SETUPTOOLS_SPEC,
         note="Mathics could not complete the same IntersectionNumbers.m calls. The workflow is now reaching the math call; inspect this error sample."
     )
     raise SystemExit(0)
 
 if len(values) != 235:
-    write_report("MATHICS_EWX_EXACT_VALUES_INCOMPLETE", value_count=len(values), expected=235, package_sha256=sha256_file(PKG), python=sys.executable, mathics_spec=MATHICS_SPEC)
+    write_report("MATHICS_EWX_EXACT_VALUES_INCOMPLETE", value_count=len(values), expected=235, package_sha256=sha256_file(PKG), python=sys.executable, mathics_spec=MATHICS_SPEC, setuptools_spec=SETUPTOOLS_SPEC)
     raise SystemExit(0)
 
 pkg_hash = sha256_file(PKG)
@@ -266,7 +276,7 @@ out = {
     "provenance": {
         "toolchain": "Mathics3 + Jefferson-Turner IntersectionNumbers.m",
         "toolchain_version": ev_string("$Version"),
-        "source_geometry": "split SU(5)/A4 Tate model, package call push[{a,4}, pushFunction->...], GUT divisor S=s[1]=R, B3=P(O+K_dP8)",
+        "source_geometry": "split SU(5)/A4 Tate model, package call IntersectionNumbers`push[{a,4}, IntersectionNumbers`pushFunction->...], GUT divisor S=s[1]=R, B3=P(O+K_dP8)",
         "sr_linear_ideal_hash": "sha256:" + pkg_hash,
         "proper_transform_hash": "sha256:" + pkg_hash,
         "script_hash": "sha256:" + script_hash,
@@ -285,4 +295,5 @@ write_report(
     value_hash="sha256:" + value_hash,
     python=sys.executable,
     mathics_spec=MATHICS_SPEC,
+    setuptools_spec=SETUPTOOLS_SPEC,
 )

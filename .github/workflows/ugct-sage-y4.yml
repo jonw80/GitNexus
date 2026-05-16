@@ -9,79 +9,101 @@ on:
 
 jobs:
   sage-y4:
+    name: Native Sage Y4 / Ewx certificate pipeline
     runs-on: ubuntu-latest
     container:
       image: sagemath/sagemath:latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout GitNexus
+        uses: actions/checkout@v4
 
-      - run: sage --version || true
+      - name: Show Sage version
+        run: sage --version || true
 
-      - working-directory: ugct_sage_y4
+      - name: Bootstrap public Esole-Yau source archive
+        working-directory: ugct_sage_y4
         run: python3 bootstrap_esole_yau_sources.py || true
 
-      - working-directory: ugct_sage_y4
+      - name: Fetch Jefferson-Turner IntersectionNumbers ancillary package
+        working-directory: ugct_sage_y4
         run: python3 fetch_intersectionnumbers_ancillary.py || true
 
-      - working-directory: ugct_sage_y4
+      - name: Introspect IntersectionNumbers public API
+        working-directory: ugct_sage_y4
         run: python3 introspect_intersectionnumbers_api.py || true
 
-      - name: Extract stable A4 structural model
+      - name: Extract stable A4/SU(5) model data from IntersectionNumbers
         working-directory: ugct_sage_y4
         run: sage -python extract_intersectionnumbers_a4_model.py || true
 
-      - name: Compute native Sage higher-Cartan structure
+      - name: Run native Sage higher-Cartan structural certificate
         working-directory: ugct_sage_y4
         run: sage -python compute_higher_cartan_native_sage.py || true
 
-      - name: Optional Wolfram Ewx driver
+      - name: Optional Wolfram Ewx exact pushforward cross-check
         working-directory: ugct_sage_y4
         run: |
           if command -v wolframscript >/dev/null 2>&1; then
             wolframscript -file run_intersectionnumbers_ewx.wls || true
+          else
+            mkdir -p reports
+            printf '{"status":"WOLFRAMSCRIPT_NOT_AVAILABLE","driver":"run_intersectionnumbers_ewx.wls"}\n' > reports/intersectionnumbers_ewx_run_report.json
+            cat reports/intersectionnumbers_ewx_run_report.json
           fi
 
-      - name: Optional Mathics compatibility path
+      - name: Optional Mathics compatibility install
         run: |
           sage -pip install --no-input --force-reinstall 'setuptools<81' 'mathics3<10' || true
 
-      - name: Optional Mathics Ewx driver
+      - name: Optional Mathics IntersectionNumbers Ewx cross-check
         working-directory: ugct_sage_y4
         run: sage -python run_intersectionnumbers_ewx_mathics.py || true
 
-      - working-directory: ugct_sage_y4
+      - name: Try complete resolved-presentation Sage export
+        working-directory: ugct_sage_y4
         run: sage -python export_higher_cartan_from_resolved_presentation.sage || true
 
-      - working-directory: ugct_sage_y4
+      - name: Try exact higher-Cartan table from Chow input
+        working-directory: ugct_sage_y4
         run: sage -python compute_higher_cartan_exact_values.sage || true
 
-      - working-directory: ugct_sage_y4
+      - name: Compute exceptional Chow reduction rules
+        working-directory: ugct_sage_y4
         run: sage -python compute_exceptional_rules_from_chow.sage || true
 
-      - working-directory: ugct_sage_y4
+      - name: Extract remaining higher-Cartan requirements
+        working-directory: ugct_sage_y4
         run: python3 extract_higher_cartan_requirements.py || true
 
-      - working-directory: ugct_sage_y4
+      - name: Validate higher-Cartan exact certificate
+        working-directory: ugct_sage_y4
         run: python3 validate_higher_cartan_exact_certificate.py || true
 
-      - working-directory: ugct_sage_y4
+      - name: Export Y4 degree-four tensor
+        working-directory: ugct_sage_y4
         run: sage -python run_chow_tensor.sage || true
 
-      - working-directory: ugct_sage_y4
+      - name: Validate full UGCT payload
+        working-directory: ugct_sage_y4
         run: python3 validate_full_payload.py || true
 
-      - if: always()
+      - name: Upload tensor, data, sources, and reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ugct-y4-sage-tensor-export
           path: |
+            .github/workflows/ugct-sage-y4.yml
+            ugct_sage_y4/*.py
+            ugct_sage_y4/*.sage
+            ugct_sage_y4/*.wls
             ugct_sage_y4/data/*.json
             ugct_sage_y4/reports/*.json
             ugct_sage_y4/reports/*.md
             ugct_sage_y4/reports/*.csv
             ugct_sage_y4/sources/*.m
             ugct_sage_y4/sources/*.nb
-            ugct_sage_y4/*.wls
 
-      - working-directory: ugct_sage_y4
+      - name: Report final UGCT math verification status
+        working-directory: ugct_sage_y4
         run: python3 fail_if_math_unverified.py || true

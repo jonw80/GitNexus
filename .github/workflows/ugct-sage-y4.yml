@@ -36,11 +36,12 @@ jobs:
             printf '{"status":"WOLFRAMSCRIPT_NOT_AVAILABLE","driver":"run_intersectionnumbers_ewx.wls"}\n' > reports/intersectionnumbers_ewx_run_report.json
             cat reports/intersectionnumbers_ewx_run_report.json
           fi
-      - name: Preinstall Mathics fallback if possible
+      - name: Preinstall pinned Mathics fallback if possible
         run: |
-          sage -pip install --no-input mathics3 || \
-          sage -python -m pip install --no-input mathics3 || \
-          python3 -m pip install --user --no-input mathics3 || true
+          sage -pip uninstall -y mathics3 Mathics3 Mathics3_Scanner || true
+          sage -pip install --no-input --force-reinstall 'mathics3<10' || \
+          sage -python -m pip install --no-input --force-reinstall 'mathics3<10' || \
+          python3 -m pip install --user --no-input --force-reinstall 'mathics3<10' || true
       - name: Try Mathics IntersectionNumbers Ewx driver
         working-directory: ugct_sage_y4
         run: sage -python run_intersectionnumbers_ewx_mathics.py || true

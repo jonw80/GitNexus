@@ -32,9 +32,9 @@ jobs:
         working-directory: ugct_sage_y4
         run: python3 introspect_intersectionnumbers_api.py || true
 
-      - name: Extract stable A4/SU(5) model data from IntersectionNumbers
+      - name: Extract stable A4/SU(5) model data directly from source formulas
         working-directory: ugct_sage_y4
-        run: sage -python extract_intersectionnumbers_a4_model.py || true
+        run: sage -python extract_a4_direct_model.py || true
 
       - name: Run native Sage higher-Cartan structural certificate
         working-directory: ugct_sage_y4

@@ -8,7 +8,9 @@ and writes data/higher_cartan_closure_rules.json if successful.
 
 This version removes execution blockers seen on hosted runners:
   * the workflow runs it with sage -python;
-  * it self-installs Mathics3 if import fails, trying Sage pip paths too;
+  * it installs a pre-10 Mathics line when possible, because Mathics3 10.0.1
+    has crashed during MathicsSession() initialization in the Sage container;
+  * it catches MathicsSession() startup failure and writes a JSON report;
   * it passes absolute paths into the Mathics kernel;
   * it emits package/cartesian-class diagnostics when setup fails.
 """
@@ -29,6 +31,7 @@ REPORTS.mkdir(exist_ok=True)
 PKG = SOURCES / "IntersectionNumbers.m"
 OUT = DATA / "higher_cartan_closure_rules.json"
 REPORT = REPORTS / "intersectionnumbers_ewx_mathics_report.json"
+MATHICS_SPEC = "mathics3<10"
 
 BASE_NAMES = ["R", "H"] + [f"E{i}" for i in range(1, 9)]
 BASE_SYMS = {"R": "r", "H": "h", **{f"E{i}": f"ee{i}" for i in range(1, 9)}}
@@ -65,14 +68,14 @@ def ckey(parts):
 
 def run_install_commands():
     commands = []
-    commands.append([sys.executable, "-m", "pip", "install", "--no-input", "mathics3"])
-    commands.append([sys.executable, "-m", "pip", "install", "--user", "--no-input", "mathics3"])
+    commands.append([sys.executable, "-m", "pip", "install", "--no-input", "--force-reinstall", MATHICS_SPEC])
+    commands.append([sys.executable, "-m", "pip", "install", "--user", "--no-input", "--force-reinstall", MATHICS_SPEC])
     sage = shutil.which("sage")
     if sage:
-        commands.append([sage, "-pip", "install", "--no-input", "mathics3"])
-        commands.append([sage, "-pip", "install", "--user", "--no-input", "mathics3"])
-        commands.append([sage, "-python", "-m", "pip", "install", "--no-input", "mathics3"])
-        commands.append([sage, "-python", "-m", "pip", "install", "--user", "--no-input", "mathics3"])
+        commands.append([sage, "-pip", "install", "--no-input", "--force-reinstall", MATHICS_SPEC])
+        commands.append([sage, "-pip", "install", "--user", "--no-input", "--force-reinstall", MATHICS_SPEC])
+        commands.append([sage, "-python", "-m", "pip", "install", "--no-input", "--force-reinstall", MATHICS_SPEC])
+        commands.append([sage, "-python", "-m", "pip", "install", "--user", "--no-input", "--force-reinstall", MATHICS_SPEC])
     errors = []
     for cmd in commands:
         try:
@@ -102,10 +105,23 @@ if not PKG.exists():
 
 MathicsSession, import_error = import_mathics_session()
 if MathicsSession is None:
-    write_report("MATHICS_EWX_NOT_RUN", reason="Mathics3 is not importable/installable", exception=import_error, python=sys.executable)
+    write_report("MATHICS_EWX_NOT_RUN", reason="Mathics3 is not importable/installable", exception=import_error, python=sys.executable, mathics_spec=MATHICS_SPEC)
     raise SystemExit(0)
 
-session = MathicsSession()
+try:
+    session = MathicsSession()
+except Exception as exc:
+    write_report(
+        "MATHICS_EWX_SESSION_START_FAILED",
+        reason="MathicsSession() raised before the IntersectionNumbers package could be loaded",
+        exception=repr(exc),
+        python=sys.executable,
+        mathics_spec=MATHICS_SPEC,
+        package_present=PKG.exists(),
+        package_sha256=sha256_file(PKG) if PKG.exists() else None,
+        workaround="Use wolframscript/self-hosted Wolfram Engine or a pure Sage resolved-presentation input; Mathics could not initialize in this Sage container."
+    )
+    raise SystemExit(0)
 
 def ev(code: str):
     return session.evaluate(code)
@@ -162,6 +178,7 @@ except Exception as exc:
         package=str(pkg_abs),
         package_sha256=sha256_file(PKG),
         python=sys.executable,
+        mathics_spec=MATHICS_SPEC,
     )
     raise SystemExit(0)
 
@@ -183,6 +200,7 @@ if cartan_len.strip() != "4":
         diagnostics=diagnostics,
         package_sha256=sha256_file(PKG),
         python=sys.executable,
+        mathics_spec=MATHICS_SPEC,
     )
     raise SystemExit(0)
 
@@ -226,12 +244,13 @@ if errors:
         error_sample=errors,
         package_sha256=sha256_file(PKG),
         python=sys.executable,
+        mathics_spec=MATHICS_SPEC,
         note="Mathics could not complete the same IntersectionNumbers.m calls. The workflow is now reaching the math call; inspect this error sample."
     )
     raise SystemExit(0)
 
 if len(values) != 235:
-    write_report("MATHICS_EWX_EXACT_VALUES_INCOMPLETE", value_count=len(values), expected=235, package_sha256=sha256_file(PKG), python=sys.executable)
+    write_report("MATHICS_EWX_EXACT_VALUES_INCOMPLETE", value_count=len(values), expected=235, package_sha256=sha256_file(PKG), python=sys.executable, mathics_spec=MATHICS_SPEC)
     raise SystemExit(0)
 
 pkg_hash = sha256_file(PKG)
@@ -265,4 +284,5 @@ write_report(
     script_hash="sha256:" + script_hash,
     value_hash="sha256:" + value_hash,
     python=sys.executable,
+    mathics_spec=MATHICS_SPEC,
 )

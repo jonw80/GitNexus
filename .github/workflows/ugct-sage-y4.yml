@@ -36,9 +36,9 @@ jobs:
         working-directory: ugct_sage_y4
         run: sage -python extract_a4_direct_model.py || true
 
-      - name: Run native Sage higher-Cartan structural certificate
+      - name: Run native Sage exact blowup-pushforward engine
         working-directory: ugct_sage_y4
-        run: sage -python compute_higher_cartan_native_sage.py || true
+        run: sage -python native_pushforward_core.py || true
 
       - name: Optional Wolfram Ewx exact pushforward cross-check
         working-directory: ugct_sage_y4

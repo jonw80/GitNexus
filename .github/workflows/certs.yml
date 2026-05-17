@@ -1,0 +1,52 @@
+name: UGCT Certificate Layer
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'data_room/**'
+      - '.github/workflows/certs.yml'
+
+jobs:
+  cert2_pf_basis:
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.12
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install mpmath python-flint || true
+      - run: python data_room/scripts/compute_pf_basis.py
+
+  cert3_gvw:
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.12
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install mpmath python-flint || true
+      - run: python data_room/scripts/attractor_interval_solve.py
+
+  cert10_kahler:
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.12
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install mpmath python-flint || true
+      - run: python data_room/scripts/kahler_stabilize.py
+
+  cert16_prime_race:
+    runs-on: ubuntu-latest
+    container:
+      image: python:3.12
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install mpmath python-flint || true
+      - run: python data_room/scripts/prime_race_delta.py
+
+  aggregate:
+    needs: [cert2_pf_basis, cert3_gvw, cert10_kahler, cert16_prime_race]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python data_room/scripts/aggregate.py

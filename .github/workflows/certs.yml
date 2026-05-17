@@ -8,45 +8,52 @@ on:
       - '.github/workflows/certs.yml'
 
 jobs:
-  cert2_pf_basis:
+  certificate-layer:
+    name: Emit and validate tiered certificate layer
     runs-on: ubuntu-latest
     container:
       image: python:3.12
     steps:
-      - uses: actions/checkout@v4
-      - run: pip install mpmath python-flint || true
-      - run: python data_room/scripts/compute_pf_basis.py
+      - name: Checkout GitNexus
+        uses: actions/checkout@v4
 
-  cert3_gvw:
-    runs-on: ubuntu-latest
-    container:
-      image: python:3.12
-    steps:
-      - uses: actions/checkout@v4
-      - run: pip install mpmath python-flint || true
-      - run: python data_room/scripts/attractor_interval_solve.py
+      - name: Emit all 16 certificate-layer payloads
+        run: python data_room/scripts/emit_all_certificates.py
 
-  cert10_kahler:
-    runs-on: ubuntu-latest
-    container:
-      image: python:3.12
-    steps:
-      - uses: actions/checkout@v4
-      - run: pip install mpmath python-flint || true
-      - run: python data_room/scripts/kahler_stabilize.py
+      - name: Validate generated certificate layer
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('data_room')
+          index = json.loads((root / 'data' / 'INDEX.generated.json').read_text())
+          files = index.get('files', [])
+          missing = [f for f in files if not (root / f).exists()]
+          if missing:
+              raise SystemExit({'status':'CERT_LAYER_INVALID_MISSING_FILES','missing':missing})
+          records = []
+          for rel in files:
+              if rel.endswith('.json'):
+                  obj = json.loads((root / rel).read_text())
+                  records.append((rel, obj.get('tier'), obj.get('status'), obj.get('fully_certified')))
+          bad_frontier = [r for r in records if str(r[1]) == '3' and r[3] is True]
+          if bad_frontier:
+              raise SystemExit({'status':'CERT_LAYER_INVALID_FALSE_FRONTIER_CERTIFICATION','bad_frontier':bad_frontier})
+          required = 16
+          cert_count = len([r for r in records if str(r[0]).startswith('data/') and r[0] != 'data/INDEX.generated.json'])
+          if cert_count < required:
+              raise SystemExit({'status':'CERT_LAYER_INVALID_TOO_FEW_CERTIFICATES','count':cert_count})
+          print({'status':'CERT_LAYER_VALIDATED','certificate_records':cert_count,'index_status':index.get('status')})
+          PY
 
-  cert16_prime_race:
-    runs-on: ubuntu-latest
-    container:
-      image: python:3.12
-    steps:
-      - uses: actions/checkout@v4
-      - run: pip install mpmath python-flint || true
-      - run: python data_room/scripts/prime_race_delta.py
-
-  aggregate:
-    needs: [cert2_pf_basis, cert3_gvw, cert10_kahler, cert16_prime_race]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: python data_room/scripts/aggregate.py
+      - name: Upload certificate layer artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ugct-certificate-layer
+          path: |
+            data_room/README.md
+            data_room/data/*.json
+            data_room/proofs/*.tex
+            data_room/scripts/*.py
+            .github/workflows/certs.yml

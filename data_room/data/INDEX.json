@@ -1,0 +1,29 @@
+{
+  "schema_version": "UGCT_CERTIFICATE_LAYER_V1",
+  "status": "PARTIAL_CERTIFICATE_LAYER_WITH_HONEST_FRONTIER_FLAGS",
+  "date_recorded": "2026-05-16",
+  "resolved_geometry": {
+    "status": "FULL_CHAMBER_SPECIFIC_TENSOR_VERIFIED",
+    "higher_cartan_values": 235,
+    "exceptional_rules": 1509,
+    "unsupported_multisets": 0
+  },
+  "certificates": [
+    {"id":1,"name":"flux_scan","tier":2,"status":"SPECIFIED_NOT_FULLY_ENUMERATED","output":"data/flux_scan_summary.json"},
+    {"id":2,"name":"pf_basis","tier":1,"status":"READY_FOR_INTERVAL_COMPUTATION","output":"data/pf_basis.json"},
+    {"id":3,"name":"gvw_attractor","tier":1,"status":"READY_FOR_KRAWCZYK_CERTIFICATION","output":"data/attractor_intervals.json"},
+    {"id":4,"name":"axio_dilaton","tier":1,"status":"READY_FOR_INTERVAL_SOLVE","output":"data/axio_dilaton_interval.json"},
+    {"id":5,"name":"instanton_divisors","tier":"1-2","status":"READY_FOR_ZERO_MODE_SCAN","output":"data/instanton_divisors.json"},
+    {"id":6,"name":"hidden_sector_ranks","tier":1,"status":"READY_FOR_TADPOLE_SCAN","output":"data/hidden_sector_ranks.json"},
+    {"id":7,"name":"pfaffian_prefactors","tier":3,"status":"FRONTIER_ONLY_ZERO_LOCUS_CERTIFIABLE","output":"data/pfaffian_prefactors.json"},
+    {"id":8,"name":"racetrack_superpotential","tier":2,"status":"INHERITS_PFAFFIAN_WIDTH","output":"data/racetrack_superpotential.json"},
+    {"id":9,"name":"string_loop_coefficients","tier":2,"status":"SYSTEMATIC_INTERVAL_ONLY","output":"data/string_loop_coefficients.json"},
+    {"id":10,"name":"kahler_stabilization","tier":1,"status":"READY_FOR_INTERVAL_HESSIAN_CERTIFICATE","output":"data/kahler_stabilization_certificate.json"},
+    {"id":11,"name":"warp_factor","tier":"2-3","status":"LEADING_ORDER_ONLY","output":"data/warp_factor_certificate.json"},
+    {"id":12,"name":"uplift_backreaction","tier":3,"status":"CONTESTED_RESEARCH_FRONTIER","output":"data/uplift_backreaction_certificate.json"},
+    {"id":13,"name":"cosmological_constant_budget","tier":2,"status":"INHERITS_BACKREACTION_WIDTH","output":"data/cosmological_constant_error_budget.json"},
+    {"id":14,"name":"cp_trace_anomaly","tier":2,"status":"FLAG_AGGREGATION_READY","output":"data/cp_trace_anomaly_certificate.json"},
+    {"id":15,"name":"global_arithmetic_identity","tier":1,"status":"MAIN_MANUSCRIPT_PROOF_PRESENT","output":"proofs/global_arithmetic_id_certificate.tex"},
+    {"id":16,"name":"prime_race_density","tier":"2_conditional_3_unconditional","status":"DELTA_GT_HALF_CONDITIONAL_ON_GRH_LI","output":"data/prime_race_density_certificate.json"}
+  ]
+}

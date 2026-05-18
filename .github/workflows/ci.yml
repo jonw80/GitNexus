@@ -3,8 +3,16 @@ name: CI
 on:
   push:
     branches: [main]
+    paths:
+      - 'gitnexus/**'
+      - '.github/workflows/ci.yml'
+      - '.github/workflows/publish.yml'
   pull_request:
     branches: [main]
+    paths:
+      - 'gitnexus/**'
+      - '.github/workflows/ci.yml'
+      - '.github/workflows/publish.yml'
   workflow_call:
 
 jobs:

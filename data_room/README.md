@@ -45,4 +45,6 @@ No file in this data room may claim `VERIFIED_*` unless it contains a concrete c
 
 ## CI
 
-The workflow `.github/workflows/certs.yml` runs lightweight certificate emitters and an aggregator.  The emitters produce JSON files with schema, tier, status, reproduction command, dependencies, and caveats.  They are intentionally strict about not converting research-frontier objects into verified certificates.
+The workflow `.github/workflows/certs.yml` runs the unified Principia certificate layer.  The current Tier-1 dependency chain computes concrete local certificates for `pf_basis.json`, `attractor_intervals.json`, and `axio_dilaton_interval.json`, then validates the full payload bundle.  Tier-2 and Tier-3 records remain explicitly labeled by evidentiary status rather than being promoted by name alone.
+
+Last trigger note: 2026-05-18 unified certificate compute rerun.

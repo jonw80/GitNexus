@@ -8,157 +8,75 @@ on:
       - '.github/workflows/certs.yml'
 
 jobs:
-  cert_prime_race:
-    name: '16: Prime race conditional certificate'
+  principia-certificate-layer:
+    name: Unified Principia certificate layer
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: pip install mpmath==1.3.0
-      - run: python data_room/scripts/prime_race_delta.py --N-zeros 50 --skip-inversion --out data_room/data/prime_race_density_certificate.json
-      - uses: actions/upload-artifact@v4
-        with:
-          name: cert-16-prime-race
-          path: data_room/data/prime_race_density_certificate.json
 
-  cert_cp:
-    name: '14: c_p FLAG/trace-anomaly certificate'
-    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: pip install mpmath==1.3.0
-      - run: python data_room/scripts/cp_anomaly_from_flag.py --out data_room/data/cp_trace_anomaly_certificate.json
-      - uses: actions/upload-artifact@v4
-        with:
-          name: cert-14-cp
-          path: data_room/data/cp_trace_anomaly_certificate.json
 
-  cert_string_loops:
-    name: '9: String-loop systematic certificate'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: python data_room/scripts/string_loop_coefficients.py --out data_room/data/string_loop_coefficients.json
-      - uses: actions/upload-artifact@v4
-        with:
-          name: cert-09-string-loops
-          path: data_room/data/string_loop_coefficients.json
 
-  cert_warp:
-    name: '11: Warp factor leading-order certificate'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: python data_room/scripts/warp_factor.py --M 7 --K 14 --gs 0.3 --out data_room/data/warp_factor_certificate.json
-      - uses: actions/upload-artifact@v4
-        with:
-          name: cert-11-warp
-          path: data_room/data/warp_factor_certificate.json
+      - name: Install lightweight certificate dependencies
+        run: |
+          pip install mpmath==1.3.0
 
-  cert_backreaction:
-    name: '12: Backreaction Tier-3 static check'
-    runs-on: ubuntu-latest
-    needs: cert_warp
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: cert-11-warp
-          path: data_room/data/
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: python data_room/scripts/backreaction_static_check.py --warp data_room/data/warp_factor_certificate.json --out data_room/data/uplift_backreaction_certificate.json
-      - uses: actions/upload-artifact@v4
-        with:
-          name: cert-12-backreaction
-          path: data_room/data/uplift_backreaction_certificate.json
-
-  cert_kahler:
-    name: '10: Kähler stabilization schema/Krawczyk certificate'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: pip install python-flint==0.6.0
-      - run: |
+      - name: Emit certificate layer
+        run: |
           mkdir -p data_room/data
-          printf '{"schema_version":"stub","status":"upstream_pending"}\n' > data_room/data/racetrack_superpotential.json
-          printf '{"schema_version":"stub","status":"nlo_placeholder"}\n' > data_room/data/kahler_potential_nlo.json
-          python data_room/scripts/kahler_stabilize.py \
-            --racetrack data_room/data/racetrack_superpotential.json \
-            --kahler-nlo data_room/data/kahler_potential_nlo.json \
-            --out data_room/data/kahler_stabilization_certificate.json
-      - uses: actions/upload-artifact@v4
-        with:
-          name: cert-10-kahler
-          path: data_room/data/kahler_stabilization_certificate.json
+          python data_room/scripts/emit_all_certificates.py
 
-  cert_cosmo_budget:
-    name: '13: Cosmological-constant error budget'
-    runs-on: ubuntu-latest
-    needs: [cert_kahler, cert_string_loops, cert_backreaction]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: cert-10-kahler
-          path: data_room/data/
-      - uses: actions/download-artifact@v4
-        with:
-          name: cert-09-string-loops
-          path: data_room/data/
-      - uses: actions/download-artifact@v4
-        with:
-          name: cert-12-backreaction
-          path: data_room/data/
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: |
-          python data_room/scripts/cosmo_const_budget.py \
-            --kahler data_room/data/kahler_stabilization_certificate.json \
-            --uplift data_room/data/uplift_backreaction_certificate.json \
-            --string-loops data_room/data/string_loop_coefficients.json \
-            --out data_room/data/cosmological_constant_error_budget.json
-      - uses: actions/upload-artifact@v4
-        with:
-          name: cert-13-cosmo-budget
-          path: data_room/data/cosmological_constant_error_budget.json
+      - name: Validate emitted certificate layer
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
 
-  aggregate_index:
-    name: 'INDEX: aggregate emitted certificates'
-    runs-on: ubuntu-latest
-    needs: [cert_prime_race, cert_cp, cert_string_loops, cert_warp, cert_backreaction, cert_kahler, cert_cosmo_budget]
-    if: always()
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+          root = Path('data_room/data')
+          files = list(root.glob('*.json'))
+          if len(files) < 16:
+              raise SystemExit(f'Expected >=16 certificate JSON files, found {len(files)}')
+
+          frontier = []
+          conditional = []
+          for f in files:
+              try:
+                  obj = json.loads(f.read_text())
+              except Exception as exc:
+                  raise SystemExit(f'Unreadable JSON {f}: {exc}')
+
+              status = str(obj.get('status',''))
+              tier = str(obj.get('tier',''))
+
+              if tier == '3' and obj.get('fully_certified') is True:
+                  raise SystemExit(f'Invalid frontier certification: {f}')
+
+              if 'FRONTIER' in status or 'CONTESTED' in status:
+                  frontier.append(f.name)
+
+              if 'CONDITIONAL' in status or 'conditional' in tier:
+                  conditional.append(f.name)
+
+          summary = {
+              'status': 'CERTIFICATE_LAYER_VALIDATED',
+              'json_count': len(files),
+              'frontier_count': len(frontier),
+              'conditional_count': len(conditional),
+              'frontier': frontier,
+              'conditional': conditional,
+          }
+          print(json.dumps(summary, indent=2))
+          PY
+
+      - name: Upload unified certificate artifact
+        uses: actions/upload-artifact@v4
         with:
-          path: data_room/data/
-          merge-multiple: true
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: python data_room/scripts/aggregate.py --data-dir data_room/data --out data_room/data/INDEX.json
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ugct-certificate-layer
+          name: principia-certificate-layer
           path: |
             data_room/data/*.json
+            data_room/proofs/*.tex
             data_room/scripts/*.py
             data_room/README.md
             .github/workflows/certs.yml

@@ -174,7 +174,7 @@ items.append(("data/warp_factor_certificate.json", cert(11, "warp_factor", "2-3"
     literature=["Klebanov-Strassler JHEP 08 (2000)", "GKP Phys Rev D 66 (2002)", "Lust-Randall Fortschr Phys 70 (2022)"]
 )))
 
-items.append(("data/uplift_backreaction_certificate.json", cert(12, "uplift_backreaction_stability", 3, "CONTESTED_RESEARCH_FRONTIER_NOT_FULLY_CERTIFIED", False,
+items.append(("data/uplift_backreaction_certificate.json", cert(12, "uplift_backreaction_stability", 3, "CONTESTED_RESEARCH_FRONTIER_NOT_FULLY_CERTIFIED",
     input_schema={"warp_data":"Item 11","D3_tadpole_budget":44,"condensate_scale":"interval"},
     algorithm="Static leading-order checks only; full anti-D3 backreaction and post-uplift Hessian positivity are literature-contested for tadpole budget 44.",
     output_schema=["delta_K_over_K_estimate","BBL_bound_satisfied","alternative_uplift_paths","goldstino_present","fully_certified"],

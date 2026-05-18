@@ -23,10 +23,31 @@ jobs:
         run: |
           pip install mpmath==1.3.0
 
-      - name: Emit certificate layer
+      - name: Emit baseline certificate layer
         run: |
           mkdir -p data_room/data
           python data_room/scripts/emit_all_certificates.py
+
+      - name: Compute Tier-1 Picard-Fuchs period certificate
+        run: |
+          python data_room/scripts/compute_pf_basis.py \
+            --precision 120 \
+            --terms 80 \
+            --z-num 1 \
+            --z-den 10000000 \
+            --out data_room/data/pf_basis.json
+
+      - name: Compute Tier-1 local GVW attractor certificate
+        run: |
+          python data_room/scripts/compute_gvw_local_certificate.py \
+            --pf-basis data_room/data/pf_basis.json \
+            --out data_room/data/attractor_intervals.json
+
+      - name: Compute Tier-1 axio-dilaton interval certificate
+        run: |
+          python data_room/scripts/compute_axio_dilaton_interval.py \
+            --attractor data_room/data/attractor_intervals.json \
+            --out data_room/data/axio_dilaton_interval.json
 
       - name: Validate emitted certificate layer
         run: |
@@ -41,6 +62,7 @@ jobs:
 
           frontier = []
           conditional = []
+          verified = []
           for f in files:
               try:
                   obj = json.loads(f.read_text())
@@ -59,11 +81,21 @@ jobs:
               if 'CONDITIONAL' in status or 'conditional' in tier:
                   conditional.append(f.name)
 
+              if status.startswith('VERIFIED') or status.startswith('CERTIFIED') or obj.get('fully_certified') is True:
+                  verified.append(f.name)
+
+          required_verified = {'pf_basis.json', 'attractor_intervals.json', 'axio_dilaton_interval.json'}
+          missing_verified = sorted(required_verified - set(verified))
+          if missing_verified:
+              raise SystemExit(f'Tier-1 dependency chain did not verify: {missing_verified}; verified={verified}')
+
           summary = {
               'status': 'CERTIFICATE_LAYER_VALIDATED',
               'json_count': len(files),
+              'verified_count': len(verified),
               'frontier_count': len(frontier),
               'conditional_count': len(conditional),
+              'verified': verified,
               'frontier': frontier,
               'conditional': conditional,
           }

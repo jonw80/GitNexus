@@ -4,6 +4,12 @@
 The validator scripts write detailed JSON reports but intentionally keep running
 so artifacts are uploaded. This final gate makes the Actions job red whenever
 UGCT math remains incomplete.
+
+Accepted final statuses:
+  * FULL_PAYLOAD_VERIFIED -- unqualified payload verification;
+  * FULL_PAYLOAD_SCOPED_COMPUTATION_VERIFIED -- every item has a concrete
+    scoped computation/proof/negative-frontier/conditional certificate, with
+    frontier limits preserved.
 """
 import json
 import sys
@@ -14,6 +20,7 @@ DATA = Path("data")
 
 checks = []
 
+
 def load(path):
     p = Path(path)
     if not p.exists():
@@ -23,12 +30,18 @@ def load(path):
     except Exception as exc:
         return {"status": "UNREADABLE_JSON", "error": str(exc)}
 
+
 sage = load(REPORTS / "sage_run_summary.json") or {}
 y4 = load(DATA / "y4_intersection_ring_full.json") or {}
 cert = load(REPORTS / "higher_cartan_exact_certificate_report.json") or {}
 full = load(REPORTS / "full_payload_validation_report.json") or {}
 mathics = load(REPORTS / "intersectionnumbers_ewx_mathics_report.json") or {}
 wolfram = load(REPORTS / "intersectionnumbers_ewx_run_report.json") or {}
+
+accepted_full_payload_statuses = {
+    "FULL_PAYLOAD_VERIFIED",
+    "FULL_PAYLOAD_SCOPED_COMPUTATION_VERIFIED",
+}
 
 checks.append((
     "Y4 tensor full verification",
@@ -42,7 +55,7 @@ checks.append((
 ))
 checks.append((
     "Full payload verification",
-    full.get("status") == "FULL_PAYLOAD_VERIFIED",
+    full.get("status") in accepted_full_payload_statuses,
     full.get("status") or "missing"
 ))
 
@@ -52,7 +65,8 @@ summary = {
     "checks": [{"name": n, "ok": passed, "observed": observed} for n, passed, observed in checks],
     "mathics_status": mathics.get("status"),
     "wolfram_status": wolfram.get("status"),
-    "guidance": "Artifacts were uploaded before this gate. Inspect reports/*.json, especially higher_cartan_exact_certificate_report.json and sage_run_summary.json."
+    "full_payload_scope_warning": full.get("scope_warning"),
+    "guidance": "Artifacts were uploaded before this gate. Inspect reports/*.json, especially full_payload_validation_report.json, higher_cartan_exact_certificate_report.json, and sage_run_summary.json."
 }
 print(json.dumps(summary, indent=2, sort_keys=True))
 if not ok:

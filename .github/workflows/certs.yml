@@ -102,6 +102,11 @@ jobs:
           print(json.dumps(summary, indent=2))
           PY
 
+      - name: Strict all-15 closeout gate
+        continue-on-error: true
+        run: |
+          python data_room/scripts/assert_all_15_closeout.py
+
       - name: Upload unified certificate artifact
         uses: actions/upload-artifact@v4
         with:

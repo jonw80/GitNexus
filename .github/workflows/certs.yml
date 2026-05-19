@@ -49,6 +49,10 @@ jobs:
             --attractor data_room/data/attractor_intervals.json \
             --out data_room/data/axio_dilaton_interval.json
 
+      - name: Compute remaining scoped certificate payloads
+        run: |
+          python data_room/scripts/compute_remaining_scoped_certificates.py
+
       - name: Validate emitted certificate layer
         run: |
           python - <<'PY'
@@ -84,10 +88,23 @@ jobs:
               if status.startswith('VERIFIED') or status.startswith('CERTIFIED') or obj.get('fully_certified') is True:
                   verified.append(f.name)
 
-          required_verified = {'pf_basis.json', 'attractor_intervals.json', 'axio_dilaton_interval.json'}
+          required_verified = {
+              'pf_basis.json',
+              'attractor_intervals.json',
+              'axio_dilaton_interval.json',
+              'flux_scan_summary.json',
+              'instanton_divisors.json',
+              'hidden_sector_ranks.json',
+              'racetrack_superpotential.json',
+              'string_loop_coefficients.json',
+              'kahler_stabilization_certificate.json',
+              'warp_factor_certificate.json',
+              'cosmological_constant_error_budget.json',
+              'cp_trace_anomaly_certificate.json',
+          }
           missing_verified = sorted(required_verified - set(verified))
           if missing_verified:
-              raise SystemExit(f'Tier-1 dependency chain did not verify: {missing_verified}; verified={verified}')
+              raise SystemExit(f'Scoped computation chain did not verify: {missing_verified}; verified={verified}')
 
           summary = {
               'status': 'CERTIFICATE_LAYER_VALIDATED',

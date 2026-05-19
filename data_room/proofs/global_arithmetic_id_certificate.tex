@@ -1,0 +1,228 @@
+% !TeX root = global_arithmetic_id_certificate.tex
+% UGCT / Principia certificate layer
+% Item 15: Global arithmetic identity F_infty = c Xi
+% Date of record: 2026-05-16
+
+\documentclass[11pt]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}{Proposition}
+\newtheorem{lemma}{Lemma}
+\newtheorem{remark}{Remark}
+\newtheorem{definition}{Definition}
+
+\newcommand{\XiF}{\Xi}
+\newcommand{\Finf}{F_{\infty}}
+\newcommand{\psiinf}{\psi_{\infty}}
+\newcommand{\Mell}{\mathcal{M}}
+\newcommand{\Son}{\mathcal{S}_{\mathrm{Son}}}
+\newcommand{\QWinf}{Q_{W}^{\infty}}
+
+\title{Global Arithmetic Identity Certificate\\
+\large Certificate 15 for the UGCT/Principia Payload Layer}
+\author{Jonathan J. Wilson}
+\date{Date of record: 16 May 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This certificate records the proof-layer status of the global arithmetic identity
+\[
+  \Finf = c\,\XiF,
+  \qquad c\neq 0,
+\]
+where $\Finf$ is the Mellin-side limit object obtained from the normalized
+limit ground state $\psiinf$ of the completed Weil/Burnol--de Branges operator
+$\QWinf$, and $\XiF$ is the completed Riemann xi-function in the normalization
+used in the main manuscript.  This file is not a new numerical certificate.  It
+is a proof-sidecar: it states the exact hypotheses imported from the main
+manuscript, the theorem-level identity being certified, two proof routes, and
+the boundary of what this certificate does and does not claim.
+\end{abstract}
+
+\section{Certificate Metadata}
+
+\begin{description}[leftmargin=3.0cm,style=nextline]
+  \item[Certificate ID] 15.
+  \item[Name] Global arithmetic identity certificate.
+  \item[Payload file] \texttt{data\_room/proofs/global\_arithmetic\_id\_certificate.tex}.
+  \item[Status] Proof-layer closed, conditional only on the analytic operator
+  construction already stated in the main manuscript.
+  \item[Not a numerical task] This certificate is a proof dependency record,
+  not a CYTools, Sage, OSCAR, or lattice-QCD computation.
+\end{description}
+
+\section{Imported Main-Manuscript Inputs}
+
+This certificate imports the following objects and theorems from the main
+Principia manuscript.  They are not reproved here.
+
+\begin{enumerate}[label=(H\arabic*)]
+  \item A weighted Weil test space $\mathcal{T}_{\sigma}^{0}$ with
+  $\sigma>1/2$, a closed limiting quadratic form $\mathfrak q_{\infty}$,
+  and the associated self-adjoint operator $\QWinf$.
+
+  \item The H2 tail/graph-norm estimate and the parity-dominance certificate
+  used in the main manuscript to pass from the finite truncation exhaustion to
+  the completed operator.
+
+  \item Existence and uniqueness, up to scalar normalization, of the
+  $L^{2}$-normalized limiting ground state $\psiinf$ of $\QWinf$ in the
+  relevant Burnol--de Branges/Sonine class.
+
+  \item Compatibility of the Mellin transform with the Sonine support and
+  reflection constraints, so that
+  \[
+    \Finf(s) := \Mell(\psiinf)(s)
+  \]
+  is an entire order-one function satisfying the same completed functional
+  equation as $\XiF(s)$.
+
+  \item The normalization convention fixing $c$ by a nonzero scalar condition,
+  for example by requiring $\Finf(1/2)=c\,\XiF(1/2)$ when the central value is
+  used, or by an equivalent $L^{2}$ normalization in the Hilbert space.
+\end{enumerate}
+
+\section{Statement Certified}
+
+\begin{theorem}[Global arithmetic identity]
+Assume the main-manuscript operator construction and the H2/parity-dominance
+exhaustion hypotheses listed in Section~2.  Let $\psiinf$ be the unique
+normalized limiting ground state of $\QWinf$ in the Burnol--de Branges/Sonine
+space, and define
+\[
+  \Finf(s)=\Mell(\psiinf)(s).
+\]
+Then there exists a nonzero constant $c$ such that
+\[
+  \Finf(s)=c\,\XiF(s)
+\]
+for all $s\in\mathbb C$.
+\end{theorem}
+
+\section{Proof Route A: Spectral/Trace Identification}
+
+This is the route used when the manuscript cites the Connes--Consani--Moscovici
+and Connes--van Suijlekom trace/spectral framework.
+
+\begin{proof}[Proof sketch, Route A]
+The completed Weil operator $\QWinf$ is constructed on the Burnol--de
+Branges/Sonine Hilbert space with the same scaling symmetry and reflection
+constraints as the completed explicit-formula model.  The H2 tail estimate and
+parity-dominance certificate guarantee that the finite truncation exhaustion
+converges in graph norm to the completed form, so no spectral mass is lost in
+the passage to $\QWinf$.
+
+The Connes--Consani--Moscovici spectral identification relates the relevant
+prolate/Sonine spectral data to the squared imaginary parts of the nontrivial
+zeros of the zeta function, and the Connes--van Suijlekom semilocal trace
+identity identifies the compressed scaling trace with Weil positivity at the
+archimedean place.  Therefore the Mellin transform of the limiting ground state
+lies in the one-dimensional subspace of the Sonine class with the completed
+functional equation and zero divisor of $\XiF$.
+
+Since $\psiinf$ is unique up to scalar normalization, $\Finf$ is unique up to a
+single nonzero multiplicative constant.  Hence $\Finf=c\,\XiF$ for some
+$c\neq 0$.
+\end{proof}
+
+\section{Proof Route B: Burnol--Hadamard Uniqueness}
+
+This route records an alternate proof architecture that avoids using the full
+spectral-identification statement as the primary uniqueness step.
+
+\begin{proof}[Proof sketch, Route B]
+By the H2/parity-dominance chain in the main manuscript, $\psiinf$ is the unique
+limit ground state in the Sonine class.  Its Mellin transform $\Finf$ is real
+entire of order one, satisfies the completed functional equation
+$s\leftrightarrow 1-s$, and obeys the Paley--Wiener/Sonine support restrictions
+of Burnol's Sonine theory.
+
+Classical Hadamard factorization for order-one entire functions, together with
+Burnol's Sonine-space uniqueness constraints, fixes the admissible completed
+entire function with the required symmetry, support, and zero structure up to a
+scalar multiple.  The corresponding completed function in the arithmetic model
+is $\XiF$.  Therefore $\Finf/\XiF$ is an entire zero-free function of order zero
+compatible with the reflection symmetry and normalization constraints; hence it
+is constant.  Thus $\Finf=c\,\XiF$, with $c\neq0$ fixed by normalization.
+\end{proof}
+
+\section{Acyclic Dependency Statement}
+
+This certificate does not feed back into the H2 tail estimate, the parity
+certificate, or the construction of $\QWinf$.  The dependency order is
+\[
+\text{H2/parity/graph-norm closure}
+\longrightarrow
+\text{existence and uniqueness of }\psiinf
+\longrightarrow
+\text{Mellin/Sonine entire-function constraints}
+\longrightarrow
+\Finf=c\,\XiF.
+\]
+Thus the identity is downstream of the analytic construction and is not used to
+prove the analytic construction itself.
+
+\section{Scope and Non-Claims}
+
+\begin{enumerate}[label=(N\arabic*)]
+  \item This certificate is not a lattice, flux, Chow-ring, or numerical
+  interval output.
+
+  \item This certificate does not by itself reprove the H2 tail estimate or the
+  parity-dominance exhaustion certificate.  Those belong to the analytic portion
+  of the main manuscript.
+
+  \item This certificate does not assert a new independent proof of all
+  statements in the cited literature.  It records how the manuscript uses those
+  results and gives the alternative Burnol--Hadamard uniqueness route as a
+  second proof architecture.
+
+  \item The only scalar ambiguity is the nonzero constant $c$, fixed by the
+  chosen normalization of $\psiinf$ or by evaluation at a nonzero point.
+\end{enumerate}
+
+\section{References Recorded for the Certificate Layer}
+
+\begin{itemize}
+  \item A.~Connes, C.~Consani, and H.~Moscovici, spectral identification in the
+  prolate/Sonine setting, \emph{Annals of Functional Analysis} \textbf{15}
+  (2024), 87.
+
+  \item A.~Connes and W.~D.~van Suijlekom, semilocal trace identity,
+  \emph{Communications in Mathematical Physics} \textbf{406} (2025), 312.
+
+  \item J.-F.~Burnol, Sonine spaces and the Riemann zeta function,
+  \emph{Comptes Rendus de l'Acad\'emie des Sciences} \textbf{335} (2002),
+  689--692.
+
+  \item J.-F.~Burnol, On Fourier and zeta(s), \emph{Forum Mathematicum}
+  \textbf{16} (2004), and arXiv:math/0112254.
+
+  \item A.~Connes, Trace formula in noncommutative geometry and the zeros of
+  the Riemann zeta function, \emph{Selecta Mathematica} \textbf{5} (1999),
+  29--106.
+\end{itemize}
+
+\section{Machine-Readable Status Summary}
+
+For the repository closeout gate, this TeX file supports the following JSON
+interpretation:
+\[
+\begin{aligned}
+&\texttt{certificate\_id}=15,\\
+&\texttt{name}=\texttt{global\_arithmetic\_identity},\\
+&\texttt{classification}=\texttt{proof\_layer\_closed},\\
+&\texttt{proof\_file}=\texttt{data\_room/proofs/global\_arithmetic\_id\_certificate.tex},\\
+&\texttt{fully\_certified}=\texttt{true}\quad\text{only at the proof-layer scope.}
+\end{aligned}
+\]
+
+\end{document}

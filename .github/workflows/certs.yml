@@ -103,11 +103,11 @@ jobs:
           PY
 
       - name: Strict all-15 closeout gate
-        continue-on-error: true
         run: |
           python data_room/scripts/assert_all_15_closeout.py
 
       - name: Upload unified certificate artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: principia-certificate-layer

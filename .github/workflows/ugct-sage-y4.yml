@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - 'ugct_sage_y4/**'
+      - 'data_room/**'
       - '.github/workflows/ugct-sage-y4.yml'
 
 jobs:
@@ -83,6 +84,25 @@ jobs:
         working-directory: ugct_sage_y4
         run: sage -python run_chow_tensor.sage || true
 
+      - name: Compute downstream data_room certificate layer
+        run: |
+          mkdir -p data_room/data
+          python3 data_room/scripts/emit_all_certificates.py
+          python3 data_room/scripts/compute_pf_basis.py \
+            --precision 120 \
+            --terms 80 \
+            --z-num 1 \
+            --z-den 10000000 \
+            --out data_room/data/pf_basis.json
+          python3 data_room/scripts/compute_gvw_local_certificate.py \
+            --pf-basis data_room/data/pf_basis.json \
+            --out data_room/data/attractor_intervals.json
+          python3 data_room/scripts/compute_axio_dilaton_interval.py \
+            --attractor data_room/data/attractor_intervals.json \
+            --out data_room/data/axio_dilaton_interval.json
+          python3 data_room/scripts/compute_remaining_scoped_certificates.py
+          python3 data_room/scripts/assert_all_15_closeout.py
+
       - name: Validate full UGCT payload
         working-directory: ugct_sage_y4
         run: python3 validate_full_payload.py || true
@@ -103,6 +123,9 @@ jobs:
             ugct_sage_y4/reports/*.csv
             ugct_sage_y4/sources/*.m
             ugct_sage_y4/sources/*.nb
+            data_room/data/*.json
+            data_room/proofs/*.tex
+            data_room/scripts/*.py
 
       - name: Report final UGCT math verification status
         working-directory: ugct_sage_y4

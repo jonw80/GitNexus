@@ -1,0 +1,35 @@
+name: UGCT Primary Source Guard
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'data_room/scripts/mark_missing_primary.py'
+      - '.github/workflows/ugct-primary-source-guard.yml'
+
+jobs:
+  guard:
+    name: Mark missing primary source artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout GitNexus
+        uses: actions/checkout@v4
+
+      - name: Emit journal derivation artifacts
+        run: python3 data_room/scripts/emit_journal_derivations.py
+
+      - name: Mark missing primary artifacts
+        run: python3 data_room/scripts/mark_missing_primary.py
+
+      - name: Report journal readiness after primary guard
+        run: python3 data_room/scripts/journal_readiness_report.py
+
+      - name: Upload guarded journal report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ugct-primary-source-guard
+          path: |
+            data_room/data/*.json
+            data_room/proofs/*.tex
+            data_room/scripts/*.py

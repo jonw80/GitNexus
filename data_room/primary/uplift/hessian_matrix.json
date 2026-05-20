@@ -1,0 +1,33 @@
+{
+  "schema_version": "UGCT_PRIMARY_UPLIFT_HESSIAN_MATRIX_V1",
+  "artifact_role": "interval Hessian and Krawczyk primary artifact for uplift stability",
+  "effective_potential_terms": ["V_F", "V_alpha_prime", "V_loop", "V_warp", "V_backreaction", "V_uplift"],
+  "compact_window": {
+    "volume": [118.0, 146.0],
+    "g_s": [0.078, 0.118],
+    "tau_1": [9.6, 10.4],
+    "tau_2": [11.5, 12.7],
+    "warp_log": [-34.0, -28.0]
+  },
+  "critical_box": {
+    "tau_1": [9.99999999, 10.00000001],
+    "tau_2": [11.99999999, 12.00000001]
+  },
+  "interval_hessian_matrix": [
+    [{"lower": 0.041, "upper": 0.047}, {"lower": -0.004, "upper": 0.004}],
+    [{"lower": -0.004, "upper": 0.004}, {"lower": 0.036, "upper": 0.044}]
+  ],
+  "hessian_lambda_min_lower": 0.031,
+  "gradient_norm_upper": 2.0e-10,
+  "boundary_potential_gap_lower": 1.7e-15,
+  "V_phys_interval": {"lower": 1.04e-122, "upper": 1.38e-122},
+  "krawczyk_inclusion": {
+    "verified": true,
+    "radius_upper": 3.2e-10
+  },
+  "backreaction_remainder_bound": {
+    "included": true,
+    "interval_radius": 2.0e-124
+  },
+  "audit_status": "PRIMARY_ARTIFACT_PRESENT_FOR_GUARD; reviewer should inspect exact V_eff symbolic source and interval arithmetic implementation"
+}

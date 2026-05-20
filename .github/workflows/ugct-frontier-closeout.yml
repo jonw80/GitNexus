@@ -15,8 +15,10 @@ on:
     paths:
       - 'data_room/scripts/emit_frontier_closeout_artifacts.py'
       - 'data_room/scripts/emit_referee_proof_sidecars.py'
+      - 'data_room/scripts/emit_journal_semantic_payloads.py'
       - 'data_room/scripts/verify_frontier_closeout.py'
       - 'data_room/scripts/verify_referee_sidecars.py'
+      - 'data_room/scripts/journal_readiness_report.py'
       - '.github/workflows/ugct-frontier-closeout.yml'
 
 jobs:
@@ -33,6 +35,9 @@ jobs:
       - name: Strengthen proof sidecars for referee review
         run: python3 data_room/scripts/emit_referee_proof_sidecars.py
 
+      - name: Populate journal semantic payloads and gap ledger
+        run: python3 data_room/scripts/emit_journal_semantic_payloads.py
+
       - name: Verify closeout artifacts
         run: |
           if [ "${{ github.event.inputs.allow_proton_pending || 'false' }}" = "true" ]; then
@@ -44,6 +49,9 @@ jobs:
       - name: Verify referee-grade proof sidecars
         run: python3 data_room/scripts/verify_referee_sidecars.py
 
+      - name: Report journal readiness and remaining gaps
+        run: python3 data_room/scripts/journal_readiness_report.py
+
       - name: Upload closeout report
         if: always()
         uses: actions/upload-artifact@v4
@@ -52,7 +60,5 @@ jobs:
           path: |
             data_room/data/*.json
             data_room/proofs/*.tex
-            data_room/scripts/emit_frontier_closeout_artifacts.py
-            data_room/scripts/emit_referee_proof_sidecars.py
-            data_room/scripts/verify_frontier_closeout.py
-            data_room/scripts/verify_referee_sidecars.py
+            data_room/source_artifacts/*.json
+            data_room/scripts/*.py

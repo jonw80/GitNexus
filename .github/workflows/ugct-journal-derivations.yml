@@ -1,0 +1,43 @@
+name: UGCT Journal Derivations
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'data_room/scripts/emit_journal_derivations.py'
+      - 'data_room/scripts/journal_readiness_report.py'
+      - '.github/workflows/ugct-journal-derivations.yml'
+
+jobs:
+  journal-derivations:
+    name: Emit journal derivations and report readiness
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout GitNexus
+        uses: actions/checkout@v4
+
+      - name: Emit base artifacts
+        run: python3 data_room/scripts/emit_frontier_closeout_artifacts.py
+
+      - name: Emit referee sidecars
+        run: python3 data_room/scripts/emit_referee_proof_sidecars.py
+
+      - name: Emit semantic payloads
+        run: python3 data_room/scripts/emit_journal_semantic_payloads.py
+
+      - name: Emit journal derivations
+        run: python3 data_room/scripts/emit_journal_derivations.py
+
+      - name: Report journal readiness
+        run: python3 data_room/scripts/journal_readiness_report.py
+
+      - name: Upload journal derivation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ugct-journal-derivations
+          path: |
+            data_room/data/*.json
+            data_room/proofs/*.tex
+            data_room/source_artifacts/*.json
+            data_room/scripts/*.py

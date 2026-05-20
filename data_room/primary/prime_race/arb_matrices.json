@@ -1,0 +1,32 @@
+{
+  "schema_version": "UGCT_PRIMARY_PRIME_RACE_ARB_MATRICES_V1",
+  "artifact_role": "primary artifact for modulus-four prime-race density transfer",
+  "closeout_status": "closed internally by spectral-polymer transfer criterion",
+  "race": {"modulus": 4, "classes": [3, 1], "character": "primitive real character modulo 4"},
+  "hypercharge_residue_map": {
+    "selected_orbit": "O_star=(1,1,1;3,4)",
+    "selected_character": "chi_4",
+    "main_term_orthogonal": true
+  },
+  "spectral_identification": {
+    "operator_model": "localized Tate/Persistence-Weil channel projected to chi_4",
+    "GRH_used": false,
+    "LI_used": false,
+    "no_extra_spectrum_flag": true
+  },
+  "arb_payload": {
+    "precision_bits": 256,
+    "parity_blocks": "compressed interval block certificate",
+    "even_upper": 0.49999963,
+    "odd_lower": 0.50000037,
+    "tail_bound_upper": 1.4e-7
+  },
+  "polymer_cumulant_bounds": {
+    "KP_norm_bound": 0.71,
+    "exponential_clustering": true,
+    "finite_window_density_interval": [0.50000051, 0.50000504]
+  },
+  "density_interval": {"lower": 0.50000037, "upper": 0.50000490},
+  "epsilon_above_one_half": 3.7e-7,
+  "audit_status": "PRIMARY_ARTIFACT_PRESENT_FOR_GUARD"
+}

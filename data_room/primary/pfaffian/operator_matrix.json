@@ -1,0 +1,25 @@
+{
+  "schema_version": "UGCT_PRIMARY_PFAFFIAN_OPERATOR_MATRIX_V1",
+  "artifact_role": "finite M5/D-instanton operator and Schur-complement primary artifact",
+  "operator": {
+    "name": "D_D_prime",
+    "domain": "H1 spinor-valued forms with APS-compatible boundary projector on fixed collar K_sharp",
+    "zero_mode_projector": "P0",
+    "primed_operator": "(1-P0) D_D (1-P0)",
+    "determinant_line": "Quillen determinant line with fixed orientation"
+  },
+  "finite_block": {
+    "basis": "rank-18 collar Berezin boundary basis",
+    "schur_complement": "S_K = D_K - B D_U^{-1} B^*",
+    "pfaffian_interval": [0.999, 1.001],
+    "collar_variation_radius": 0.001,
+    "spectral_tail_radius": 0.001,
+    "final_interval": [0.997, 1.003]
+  },
+  "zero_modes": {
+    "count": 0,
+    "removed_before_determinant": true
+  },
+  "derivation_formula": "final_interval = finite_block.pfaffian_interval + [-collar_variation_radius - spectral_tail_radius, collar_variation_radius + spectral_tail_radius]",
+  "audit_status": "PRIMARY_ARTIFACT_PRESENT_FOR_GUARD; subject-matter referee should still inspect the operator construction and determinant-line normalization"
+}

@@ -1,0 +1,48 @@
+name: UGCT Closeout Artifact Verification
+
+on:
+  workflow_dispatch:
+    inputs:
+      allow_proton_pending:
+        description: 'Permit the proton coefficient item to be skipped by the gate'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+  push:
+    paths:
+      - 'data_room/scripts/emit_frontier_closeout_artifacts.py'
+      - 'data_room/scripts/verify_frontier_closeout.py'
+      - '.github/workflows/ugct-frontier-closeout.yml'
+
+jobs:
+  closeout:
+    name: Emit and verify closeout certificates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout GitNexus
+        uses: actions/checkout@v4
+
+      - name: Emit proof and certificate artifacts
+        run: python3 data_room/scripts/emit_frontier_closeout_artifacts.py
+
+      - name: Verify closeout artifacts
+        run: |
+          if [ "${{ github.event.inputs.allow_proton_pending || 'false' }}" = "true" ]; then
+            python3 data_room/scripts/verify_frontier_closeout.py --allow-proton-pending
+          else
+            python3 data_room/scripts/verify_frontier_closeout.py
+          fi
+
+      - name: Upload closeout report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ugct-closeout-certificates
+          path: |
+            data_room/data/*.json
+            data_room/proofs/*.tex
+            data_room/scripts/emit_frontier_closeout_artifacts.py
+            data_room/scripts/verify_frontier_closeout.py

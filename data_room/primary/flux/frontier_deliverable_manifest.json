@@ -1,0 +1,27 @@
+{
+  "schema_version": "UGCT_PRIMARY_FRONTIER_FLUX_DELIVERABLE_MANIFEST_V1",
+  "artifact_role": "primary manifest for uploaded frontier HPC flux deliverable",
+  "uploaded_archive": {
+    "name": "frontier deliverable(1).zip",
+    "sha256": "cd4a1b291a93b701422513661f258de403a9045f525495fccaad93048bf9e416"
+  },
+  "files": {
+    "flux_scan_hpc.py": {
+      "bytes": 17496,
+      "sha256": "9e0288d491d22aa881dfe39c8b2621b878e37dcb14579bf0a8b442c09b84dd5b",
+      "role": "production MPI/SLURM GVW flux scan program"
+    },
+    "flux_scan_hpc.slurm": {
+      "bytes": 2475,
+      "sha256": "673012b69a7a4eef16d133aa712a7df765be4af83dbc92405bf25a74979f28b0",
+      "role": "SLURM submission wrapper for production HPC scan"
+    },
+    "FRONTIER_CLOSURE_ROADMAP.md": {
+      "bytes": 16407,
+      "sha256": "ef9c00228146c38e291493ca9799592b22edc5c961ea98ffd61941e88f0c207c",
+      "role": "frontier closure roadmap and scope statement"
+    }
+  },
+  "scope_statement": "This manifest records the uploaded HPC frontier deliverable. It supports the flux/HPC promotion path. It is not, by itself, a primary artifact for Pfaffian determinant normalization, uplift Hessian closure, prime-race Arb matrices, proton lattice ensembles, or the Hadamard determinant identity.",
+  "guard_status": "PRIMARY_FLUX_DELIVERABLE_PRESENT"
+}

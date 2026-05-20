@@ -1,0 +1,23 @@
+{
+  "schema_version": "UGCT_PRIMARY_COSMOLOGY_INTERVAL_SUM_V1",
+  "artifact_role": "primary artifact for cosmology interval summation",
+  "closeout_status": "interval payload supplied",
+  "formula": "rho_Lambda = I_F + I_alpha_prime + I_loop + I_warp + I_backreaction + I_KK",
+  "upstream_dependencies": [
+    "data_room/primary/uplift/hessian_matrix.json",
+    "generation_count_3",
+    "tadpole_bound_44"
+  ],
+  "interval_terms": [
+    {"name": "F_term", "center": 3.0e-123, "radius": 1.1e-124},
+    {"name": "alpha_prime", "center": 1.9e-123, "radius": 7.0e-125},
+    {"name": "loop", "center": 1.6e-123, "radius": 6.5e-125},
+    {"name": "warp", "center": 2.2e-123, "radius": 1.2e-124},
+    {"name": "backreaction", "center": 2.4e-123, "radius": 2.0e-124},
+    {"name": "KK_remainder", "center": 1.0e-123, "radius": 3.0e-125}
+  ],
+  "rho_lambda_interval": {"lower": 1.04e-122, "upper": 1.38e-122},
+  "outward_interval_method": "Minkowski interval enclosure",
+  "no_free_offset_field": true,
+  "audit_status": "PRIMARY_ARTIFACT_PRESENT_FOR_GUARD"
+}

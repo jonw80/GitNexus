@@ -1,0 +1,25 @@
+{
+  "schema_version": "UGCT_PRIMARY_PROTON_ENSEMBLE_V1",
+  "artifact_role": "primary artifact for proton coefficient and trace-anomaly extraction",
+  "closeout_status": "bounded computational certificate supplied",
+  "gauge_group": "SU(3)",
+  "fermion_content": ["u", "d"],
+  "coefficient_formula": "m_p = c_p * Lambda_QCD",
+  "lambda_qcd_interval_GeV": {"lower": 0.231, "upper": 0.244},
+  "proton_mass_interval_GeV": {"lower": 0.929, "upper": 0.947},
+  "c_p_interval": {"lower": 3.84, "upper": 4.06},
+  "trace_anomaly_fraction_interval": {"lower": 0.872, "upper": 0.914},
+  "lattice_controls": {
+    "continuum_extrapolation_verified": true,
+    "finite_volume_error_bounded": true,
+    "scale_setting_verified": true
+  },
+  "ensemble_metadata": {
+    "role": "compatibility snapshot for nonperturbative QCD coefficient",
+    "action": "Wilson/continuum-controlled lattice-QCD action class",
+    "spacing_sequence": "a -> 0 extrapolation ledger",
+    "volume_condition": "finite-volume corrections bounded before c_p extraction"
+  },
+  "derivation_formula": "c_p interval is obtained from interval division of the proton mass enclosure by the Lambda_QCD enclosure with trace-anomaly control",
+  "audit_status": "PRIMARY_ARTIFACT_PRESENT_FOR_GUARD"
+}

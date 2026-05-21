@@ -1,0 +1,32 @@
+name: UGCT Primary Content Validation
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'data_room/primary/**'
+      - 'ugct_sage_y4/reports/chow_tensor_export.json'
+      - 'data_room/scripts/validate_primary_content.py'
+      - '.github/workflows/ugct-primary-content-validation.yml'
+
+jobs:
+  validate-primary-content:
+    name: Validate primary artifact content
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout GitNexus
+        uses: actions/checkout@v4
+
+      - name: Validate primary artifact content
+        run: python3 data_room/scripts/validate_primary_content.py
+
+      - name: Upload primary content validation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ugct-primary-content-validation
+          path: |
+            data_room/data/primary_content_validation_report.json
+            data_room/primary/**
+            ugct_sage_y4/reports/chow_tensor_export.json
+            data_room/scripts/validate_primary_content.py

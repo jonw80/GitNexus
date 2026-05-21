@@ -1,0 +1,44 @@
+name: UGCT Real Math Run
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'data_room/primary/**'
+      - 'ugct_sage_y4/reports/chow_tensor_export.json'
+      - 'data_room/scripts/run_primary_math_core.py'
+      - 'data_room/scripts/run_primary_math_structural.py'
+      - 'data_room/scripts/validate_primary_content.py'
+      - '.github/workflows/ugct-real-math-run.yml'
+
+jobs:
+  real-math:
+    name: Recompute primary closeout math
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout GitNexus
+        uses: actions/checkout@v4
+
+      - name: Run core interval mathematics
+        run: python3 data_room/scripts/run_primary_math_core.py
+
+      - name: Run structural mathematics checks
+        run: python3 data_room/scripts/run_primary_math_structural.py
+
+      - name: Validate primary artifact content
+        run: python3 data_room/scripts/validate_primary_content.py
+
+      - name: Upload real math reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ugct-real-math-run
+          path: |
+            data_room/data/primary_math_core_report.json
+            data_room/data/primary_math_structural_report.json
+            data_room/data/primary_content_validation_report.json
+            data_room/primary/**
+            ugct_sage_y4/reports/chow_tensor_export.json
+            data_room/scripts/run_primary_math_core.py
+            data_room/scripts/run_primary_math_structural.py
+            data_room/scripts/validate_primary_content.py

@@ -56,3 +56,7 @@ repomix-output*
 
 # Design docs (local only)
 docs/plans/
+
+# Python
+__pycache__/
+*.py[cod]

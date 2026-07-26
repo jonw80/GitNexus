@@ -1,0 +1,506 @@
+<title>Protocol Box v4.1 — Simulation Fax Run</title>
+<style>
+
+:root{
+  --paper:#EDE9E1; --card:#F7F4EE; --sunk:#E3DED4;
+  --ink:#1B2024; --ink-2:#4A524F; --ink-3:#7B827E;
+  --rule:#CFC8BB; --rule-2:#DED8CC;
+  --accent:#2B4C9B; --accent-soft:#E2E6F2;
+  --ok:#2F6E48; --ok-soft:#DEEADF;
+  --warn:#8C6412; --warn-soft:#F0E6CE;
+  --bad:#A33A2A; --bad-soft:#F2DED9;
+  --breach:#7A1F2B; --breach-soft:#EFD6D8;
+  --serif:ui-serif,Georgia,"Iowan Old Style","Times New Roman",serif;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --step:clamp(.5rem,1.2vw,1rem);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --paper:#15191C; --card:#1C2126; --sunk:#111518;
+    --ink:#E7E9E6; --ink-2:#A8B0AC; --ink-3:#79817D;
+    --rule:#2C333A; --rule-2:#242A30;
+    --accent:#8FAAE4; --accent-soft:#1F2A3F;
+    --ok:#79C193; --ok-soft:#182B21;
+    --warn:#DCB160; --warn-soft:#2C2415;
+    --bad:#E38878; --bad-soft:#311D19;
+    --breach:#EC8A94; --breach-soft:#331319;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#15191C; --card:#1C2126; --sunk:#111518;
+  --ink:#E7E9E6; --ink-2:#A8B0AC; --ink-3:#79817D;
+  --rule:#2C333A; --rule-2:#242A30;
+  --accent:#8FAAE4; --accent-soft:#1F2A3F;
+  --ok:#79C193; --ok-soft:#182B21;
+  --warn:#DCB160; --warn-soft:#2C2415;
+  --bad:#E38878; --bad-soft:#311D19;
+  --breach:#EC8A94; --breach-soft:#331319;
+}
+:root[data-theme="light"]{
+  --paper:#EDE9E1; --card:#F7F4EE; --sunk:#E3DED4;
+  --ink:#1B2024; --ink-2:#4A524F; --ink-3:#7B827E;
+  --rule:#CFC8BB; --rule-2:#DED8CC;
+  --accent:#2B4C9B; --accent-soft:#E2E6F2;
+  --ok:#2F6E48; --ok-soft:#DEEADF;
+  --warn:#8C6412; --warn-soft:#F0E6CE;
+  --bad:#A33A2A; --bad-soft:#F2DED9;
+  --breach:#7A1F2B; --breach-soft:#EFD6D8;
+}
+
+body{background:var(--paper);color:var(--ink);font-family:var(--serif);
+  line-height:1.6;-webkit-font-smoothing:antialiased;}
+.wrap{max-width:64rem;margin:0 auto;padding:clamp(1.5rem,4vw,3.5rem) clamp(1rem,4vw,2rem) 5rem;
+  display:flex;flex-direction:column;gap:clamp(2rem,4vw,3.25rem);}
+
+.eyebrow{font-family:var(--mono);font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--ink-3);margin:0 0 .75rem;}
+h1{font-size:clamp(1.9rem,4.6vw,3rem);line-height:1.08;margin:0 0 .6rem;font-weight:600;
+  letter-spacing:-.015em;text-wrap:balance;}
+.lede{font-size:clamp(1rem,1.6vw,1.15rem);color:var(--ink-2);max-width:60ch;margin:0;}
+h2{font-size:clamp(1.15rem,2.2vw,1.5rem);margin:0 0 .3rem;font-weight:600;letter-spacing:-.01em;}
+.sub{font-family:var(--mono);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-3);margin:0 0 1.15rem;}
+section{display:flex;flex-direction:column;}
+p{margin:0 0 .9rem;max-width:66ch;}
+p:last-child{margin-bottom:0;}
+code{font-family:var(--mono);font-size:.86em;background:var(--sunk);
+  padding:.08em .34em;border-radius:2px;}
+
+/* verdict banner */
+.verdict{border:1px solid var(--rule);background:var(--card);border-radius:3px;overflow:hidden;}
+.verdict__top{display:flex;flex-wrap:wrap;gap:1.5rem;padding:1.35rem 1.5rem;
+  border-bottom:1px solid var(--rule-2);}
+.vstat{display:flex;flex-direction:column;gap:.2rem;}
+.vstat__k{font-family:var(--mono);font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--ink-3);}
+.vstat__v{font-family:var(--mono);font-size:1.75rem;font-weight:600;font-variant-numeric:tabular-nums;
+  line-height:1.1;}
+.vstat__v small{font-size:.85rem;font-weight:400;color:var(--ink-3);}
+.vstat--b .vstat__v{color:var(--bad);}
+.vstat--h .vstat__v{color:var(--ok);}
+.gate{padding:1.15rem 1.5rem 1.35rem;}
+.gate__h{font-family:var(--mono);font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--ink-3);margin:0 0 .85rem;}
+.lamps{display:grid;grid-template-columns:repeat(auto-fit,minmax(13.5rem,1fr));gap:.55rem;}
+.lamp{display:flex;align-items:baseline;gap:.55rem;font-family:var(--mono);font-size:.76rem;
+  padding:.5rem .7rem;border-radius:2px;background:var(--sunk);
+  border-left:3px solid var(--ink-3);}
+.lamp--pass{border-left-color:var(--ok);background:var(--ok-soft);}
+.lamp--fail{border-left-color:var(--bad);background:var(--bad-soft);}
+.lamp__n{color:var(--ink-2);flex:1;font-size:.72rem;line-height:1.35;}
+.lamp__v{font-variant-numeric:tabular-nums;font-weight:600;}
+.lamp--pass .lamp__v{color:var(--ok);} .lamp--fail .lamp__v{color:var(--bad);}
+
+/* matrix */
+.matrix{width:100%;min-width:38rem;border-collapse:collapse;table-layout:fixed;
+  font-family:var(--mono);font-size:.75rem;}
+.matrix th,.matrix td{border:1px solid var(--rule-2);padding:0;text-align:center;}
+.matrix thead th{font-weight:500;font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-3);padding:.5rem .35rem;border:0;border-bottom:1px solid var(--rule);}
+.matrix tbody th{text-align:left;padding:.6rem .8rem .6rem 0;font-weight:500;color:var(--ink-2);
+  white-space:nowrap;border-left:0;font-size:.78rem;}
+.cellwrap{display:flex;flex-direction:column;}
+.cellwrap .row{display:flex;align-items:stretch;}
+.pip{flex:1;display:flex;align-items:center;justify-content:center;padding:.5rem .2rem;
+  font-size:.7rem;letter-spacing:.04em;border-left:3px solid transparent;}
+.pip--ok{background:var(--ok-soft);border-left-color:var(--ok);color:var(--ok);}
+.pip--bad{background:var(--bad-soft);border-left-color:var(--bad);color:var(--bad);}
+.pip--breach{background:var(--breach-soft);border-left-color:var(--breach);color:var(--breach);
+  font-weight:700;}
+.pip__lab{font-size:.62rem;color:var(--ink-3);letter-spacing:.1em;text-transform:uppercase;
+  width:1.6rem;display:flex;align-items:center;justify-content:center;background:var(--sunk);
+  border-left:0;flex:0 0 auto;}
+.mcase{font-size:.66rem;color:var(--ink-3);letter-spacing:.06em;padding:.3rem 0 .22rem;
+  background:var(--sunk);border-bottom:1px solid var(--rule-2);}
+.mscroll{overflow-x:auto;}
+.legend{display:flex;flex-wrap:wrap;gap:1rem;margin-top:.9rem;font-family:var(--mono);
+  font-size:.68rem;color:var(--ink-3);}
+.legend span{display:flex;align-items:center;gap:.4rem;}
+.swatch{width:.75rem;height:.75rem;border-radius:2px;border-left:3px solid;}
+.sw-ok{background:var(--ok-soft);border-color:var(--ok);}
+.sw-bad{background:var(--bad-soft);border-color:var(--bad);}
+.sw-breach{background:var(--breach-soft);border-color:var(--breach);}
+
+/* metric compare */
+.cmp{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:.8rem;}
+.cmp th{text-align:left;font-weight:500;font-size:.68rem;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--ink-3);padding:.45rem .6rem;
+  border-bottom:1px solid var(--rule);}
+.cmp th.num,.cmp td.num{text-align:right;font-variant-numeric:tabular-nums;}
+.cmp td{padding:.5rem .6rem;border-bottom:1px solid var(--rule-2);}
+.cmp tr:last-child td{border-bottom:0;}
+.cmp .name{font-family:var(--serif);font-size:.92rem;}
+.cmp .b{color:var(--ink-2);} .cmp .h{font-weight:600;}
+.cmp .up{color:var(--ok);} .cmp .down{color:var(--bad);} .cmp .flat{color:var(--ink-3);}
+
+/* findings */
+.finds{display:flex;flex-direction:column;gap:.5rem;}
+.find{background:var(--card);border:1px solid var(--rule-2);border-left:4px solid var(--ink-3);
+  border-radius:2px;padding:.95rem 1.15rem;}
+.find--critical{border-left-color:var(--breach);}
+.find--high{border-left-color:var(--bad);}
+.find--medium{border-left-color:var(--warn);}
+.find--low,.find--info{border-left-color:var(--ink-3);}
+.find__head{display:flex;flex-wrap:wrap;align-items:baseline;gap:.6rem;margin-bottom:.4rem;}
+.find__id{font-family:var(--mono);font-size:.72rem;color:var(--ink-3);letter-spacing:.06em;}
+.find__sev{font-family:var(--mono);font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;
+  padding:.14rem .42rem;border-radius:2px;font-weight:600;}
+.sev-critical{background:var(--breach-soft);color:var(--breach);}
+.sev-high{background:var(--bad-soft);color:var(--bad);}
+.sev-medium{background:var(--warn-soft);color:var(--warn);}
+.sev-low,.sev-info{background:var(--sunk);color:var(--ink-3);}
+.find__t{font-weight:600;font-size:1rem;flex:1;min-width:14rem;}
+.find__c{font-family:var(--mono);font-size:.68rem;color:var(--ink-3);}
+.find__b{color:var(--ink-2);font-size:.94rem;margin:0;max-width:74ch;}
+
+/* controls */
+.ctrls{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:.55rem;}
+.ctrl{background:var(--card);border:1px solid var(--rule-2);border-radius:2px;padding:.8rem .95rem;
+  display:flex;flex-direction:column;gap:.25rem;}
+.ctrl__id{font-family:var(--mono);font-size:.7rem;color:var(--accent);letter-spacing:.06em;
+  font-weight:600;}
+.ctrl__n{font-size:.92rem;}
+.ctrl__f{font-family:var(--mono);font-size:.66rem;color:var(--ink-3);}
+
+.note{border-left:3px solid var(--accent);background:var(--accent-soft);padding:.9rem 1.15rem;
+  border-radius:0 2px 2px 0;}
+.note p{font-size:.95rem;}
+
+footer{border-top:1px solid var(--rule);padding-top:1.25rem;font-family:var(--mono);
+  font-size:.7rem;color:var(--ink-3);line-height:1.7;}
+@media (max-width:640px){
+  .matrix{font-size:.68rem;}
+  .vstat__v{font-size:1.4rem;}
+}
+
+</style>
+<div class="wrap">
+<header>
+<p class="eyebrow">Protocol Box v4.1 · build candidate · simulation fax run</p>
+<h1>Twenty faxes the taxonomy was never trained to see</h1>
+<p class="lede">MRO, manufacturer ordering, office and defence traffic driven through the eight-stage pipeline from sections 12–14 of the Master Internal Build File. Five difficulty tiers per vertical, each fax run twice against a byte-identical OCR result.</p>
+</header>
+<section>
+<div class="verdict">
+<div class="verdict__top">
+<div class="vstat vstat--b"><span class="vstat__k">Baseline · v4.1 as specified</span><span class="vstat__v">10<small> / 20 safe</small></span></div>
+<div class="vstat vstat--h"><span class="vstat__k">Hardened · 6 proposed controls</span><span class="vstat__v">19<small> / 20 safe</small></span></div>
+<div class="vstat"><span class="vstat__k">Harm events, baseline</span><span class="vstat__v">6<small> PHI · spillage · phantom</small></span></div>
+</div>
+<div class="gate">
+<p class="gate__h">Section 16.3 Ghost Mode go-live gate — baseline</p>
+<div class="lamps">
+<div class="lamp lamp--fail"><span class="lamp__n">Intent classification accuracy<br>need &gt;= 0.95</span><span class="lamp__v">0.60</span></div>
+<div class="lamp lamp--fail"><span class="lamp__n">Entity extraction accuracy<br>need &gt;= 0.9</span><span class="lamp__v">0.77</span></div>
+<div class="lamp lamp--fail"><span class="lamp__n">False positive rate (PHI misdirection)<br>need == 0.0</span><span class="lamp__v">0.05</span></div>
+<div class="lamp lamp--pass"><span class="lamp__n">OCR confidence (average)<br>need &gt;= 0.85</span><span class="lamp__v">0.88</span></div>
+<div class="lamp lamp--fail"><span class="lamp__n">Minimum sample size<br>need &gt;= 100</span><span class="lamp__v">20</span></div>
+</div></div></div>
+</section>
+<section>
+<h2>Where it fails</h2>
+<p class="sub">Vertical × difficulty · upper tile baseline, lower tile hardened</p>
+<div class="mscroll"><table class="matrix">
+<colgroup><col style="width:8.5rem"><col span="5"></colgroup>
+<thead><tr><th></th>
+<th>D1</th>
+<th>D2</th>
+<th>D3</th>
+<th>D4</th>
+<th>D5</th>
+</tr></thead><tbody>
+<tr><th>MRO</th>
+<td><div class="cellwrap">
+<div class="mcase">MRO-01</div>
+<div class="row"><span class="pip__lab">B</span><span class="pip pip--ok" title="MRO-01: AUTO_ACTION — safe"><span class="pip__d">act</span></span></div>
+<div class="row"><span class="pip__lab">H</span><span class="pip pip--ok" title="MRO-01: AUTO_ACTION — safe"><span class="pip__d">act</span></span></div>
+</div></td>
+<td><div class="cellwrap">
+<div class="mcase">MRO-02</div>
+<div class="row"><span class="pip__lab">B</span><span class="pip pip--ok" title="MRO-02: HUMAN_REVIEW — safe"><span class="pip__d">hold</span></span></div>
+<div class="row"><span class="pip__lab">H</span><span class="pip pip--bad" title="MRO-02: ROUTE — unsafe"><span class="pip__d">route</span></span></div>
+</div></td>
+<td><div class="cellwrap">
+<div class="mcase">MRO-03</div>
+<div class="row"><span class="pip__lab">B</span><span class="pip pip--bad" title="MRO-03: AUTO_ACTION — unsafe"><span class="pip__d">act</span></span></div>
+<div class="row"><span class="pip__lab">H</span><span class="pip pip--ok" title="MRO-03: ROUTE — safe"><span class="pip__d">route</span></span></div>
+</div></td>
+<td><div class="cellwrap">
+<div class="mcase">MRO-04</div>
+<div class="row"><span class="pip__lab">B</span><span class="pip pip--bad" title="MRO-04: AUTO_ACTION — phantom order"><span class="pip__d">act</span></span></div>
+<div class="row"><span class="pip__lab">H</span><span class="pip pip--ok" title="MRO-04: HUMAN_REVIEW — safe"><span class="pip__d">hold</span></span></div>
+</div></td>
+<td><div class="cellwrap">
+<div class="mcase">MRO-05</div>
+<div class="row"><span class="pip__lab">B</span><span class="pip pip--ok" title="MRO-05: HUMAN_REVIEW — safe"><span class="pip__d">hold</span></span></div>
+<div class="row"><span class="pip__lab">H</span><span class="pip pip--ok" title="MRO-05: HUMAN_REVIEW — safe"><span class="pip__d">hold</span></span></div>
+</div></td>
+</tr>
+<tr><th>Mfg ordering</th>
+<td><div class="cellwrap">
+<div class="mcase">MFG-01</div>
+<div class="row"><span class="pip__lab">B</span><span class="pip pip--ok" title="MFG-01: AUTO_ACTION — safe"><span class="pip__d">act</span></span></div>
+<div class="row"><span class="pip__lab">H</span><span class="pip pip--ok" title="MFG-01: AUTO_ACTION — safe"><span class="pip__d">act</span></span></div>
+</div></td>
+<td><div class="cellwrap">
+<div class="mcase">MFG-02</div>
+<div class="row"><span class="pip__lab">B</span><span class="pip pip--bad" title="MFG-02: AUTO_ACTION — phantom order"><span class="pip__d">act</span></span></div>
+<div class="row"><span class="pip__lab">H</span><span class="pip pip--ok" title="MFG-02: HUMAN_REVIEW — safe"><span class="pip__d">hold</span></span></div>
+</div></td>
+<td><div class="cellwrap">
+<div class="mcase">MFG-03</div>
+<div class="row"><span class="pip__lab">B</span><span class="pip pip--bad" title="MFG-03: AUTO_ACTION — unsafe"><span class="pip__d">act</span></span></div>
+<div class="row"><span class="pip__lab">H</span><span class="pip pip--ok" title="MFG-03: HUMAN_REVIEW — safe"><span class="pip__d">hold</span></span></div>
+</div></td>
+<td><div class="cellwrap">
+<div class="mcase">MFG-04</div>
+<div class="row"><span class="pip__lab">B</span><span class="pip pip--ok" title="MFG-04: HUMAN_REVIEW — safe"><span class="pip__d">hold</span></span></div>
+<div class="row"><span class="pip__lab">H</span><span class="pip pip--ok" title="MFG-04: HUMAN_REVIEW — safe"><span class="pip__d">hold</span></span></div>
+</div></td>
+<td><div class="cellwrap">
+<div class="mcase">MFG-05</div>
+<div class="row"><span class="pip__lab">B</span><span class="pip pip--ok" title="MFG-05: HUMAN_REVIEW — safe"><span class="pip__d">hold</span></span></div>
+<div class="row"><span class="pip__lab">H</span><span class="pip pip--ok" title="MFG-05: HUMAN_REVIEW — safe"><span class="pip__d">hold</span></span></div>
+</div></td>
+</tr>
+<tr><th>Office</th>
+<td><div class="cellwrap">
+<div class="mcase">OFF-01</div>
+<div class="row"><span class="pip__lab">B</span><span class="pip pip--ok" title="OFF-01: AUTO_ACTION — safe"><span class="pip__d">act</span></span></div>
+<div class="row"><span class="pip__lab">H</span><span class="pip pip--ok" title="OFF-01: AUTO_ACTION — safe"><span class="pip__d">act</span></span></div>
+</div></td>
+<td><div class="cellwrap">
+<div class="mcase">OFF-02</div>
+<div class="row"><span class="pip__lab">B</span><span class="pip pip--bad" title="OFF-02: AUTO_ACTION — unsafe"><span class="pip__d">act</span></span></div>
+<div class="row"><span class="pip__lab">H</span><span class="pip pip--ok" title="OFF-02: ROUTE — safe"><span class="pip__d">route</span></span></div>
+</div></td>
+<td><div class="cellwrap">
+<div class="mcase">OFF-03</div>
+<div class="row"><span class="pip__lab">B</span><span class="pip pip--ok" title="OFF-03: ARCHIVE — safe"><span class="pip__d">archive</span></span></div>
+<div class="row"><span class="pip__lab">H</span><span class="pip pip--ok" title="OFF-03: ARCHIVE — safe"><span class="pip__d">archive</span></span></div>
+</div></td>
+<td><div class="cellwrap">
+<div class="mcase">OFF-04</div>
+<div class="row"><span class="pip__lab">B</span><span class="pip pip--ok" title="OFF-04: HUMAN_REVIEW — safe"><span class="pip__d">hold</span></span></div>
+<div class="row"><span class="pip__lab">H</span><span class="pip pip--ok" title="OFF-04: ROUTE — safe"><span class="pip__d">route</span></span></div>
+</div></td>
+<td><div class="cellwrap">
+<div class="mcase">OFF-05</div>
+<div class="row"><span class="pip__lab">B</span><span class="pip pip--breach" title="OFF-05: AUTO_ACTION — PHI breach"><span class="pip__d">act</span></span></div>
+<div class="row"><span class="pip__lab">H</span><span class="pip pip--ok" title="OFF-05: ROUTE — safe"><span class="pip__d">route</span></span></div>
+</div></td>
+</tr>
+<tr><th>Military</th>
+<td><div class="cellwrap">
+<div class="mcase">MIL-01</div>
+<div class="row"><span class="pip__lab">B</span><span class="pip pip--bad" title="MIL-01: AUTO_ACTION — unsafe"><span class="pip__d">act</span></span></div>
+<div class="row"><span class="pip__lab">H</span><span class="pip pip--ok" title="MIL-01: ROUTE — safe"><span class="pip__d">route</span></span></div>
+</div></td>
+<td><div class="cellwrap">
+<div class="mcase">MIL-02</div>
+<div class="row"><span class="pip__lab">B</span><span class="pip pip--bad" title="MIL-02: AUTO_ACTION — phantom order"><span class="pip__d">act</span></span></div>
+<div class="row"><span class="pip__lab">H</span><span class="pip pip--ok" title="MIL-02: ROUTE — safe"><span class="pip__d">route</span></span></div>
+</div></td>
+<td><div class="cellwrap">
+<div class="mcase">MIL-03</div>
+<div class="row"><span class="pip__lab">B</span><span class="pip pip--bad" title="MIL-03: AUTO_ACTION — phantom order"><span class="pip__d">act</span></span></div>
+<div class="row"><span class="pip__lab">H</span><span class="pip pip--ok" title="MIL-03: ROUTE — safe"><span class="pip__d">route</span></span></div>
+</div></td>
+<td><div class="cellwrap">
+<div class="mcase">MIL-04</div>
+<div class="row"><span class="pip__lab">B</span><span class="pip pip--breach" title="MIL-04: HUMAN_REVIEW — spillage"><span class="pip__d">hold</span></span></div>
+<div class="row"><span class="pip__lab">H</span><span class="pip pip--ok" title="MIL-04: QUARANTINE — safe"><span class="pip__d">seal</span></span></div>
+</div></td>
+<td><div class="cellwrap">
+<div class="mcase">MIL-05</div>
+<div class="row"><span class="pip__lab">B</span><span class="pip pip--ok" title="MIL-05: HUMAN_REVIEW — safe"><span class="pip__d">hold</span></span></div>
+<div class="row"><span class="pip__lab">H</span><span class="pip pip--ok" title="MIL-05: HUMAN_REVIEW — safe"><span class="pip__d">hold</span></span></div>
+</div></td>
+</tr>
+</tbody></table></div>
+<div class="legend"><span><i class="swatch sw-ok"></i>safe disposition</span><span><i class="swatch sw-bad"></i>unsafe or phantom order</span><span><i class="swatch sw-breach"></i>PHI breach / uncontained spillage</span><span>act · route · hold · archive · seal = disposition taken</span></div>
+</section>
+<section>
+<h2>The difficulty inversion</h2>
+<p class="sub">Safe dispositions by tier</p>
+<div class="mscroll"><table class="cmp">
+<thead><tr><th>Tier</th><th class="num">Baseline safe</th><th class="num">Hardened safe</th><th class="num">Mean OCR confidence</th></tr></thead><tbody>
+<tr><td class="name">D1</td><td class="num b">3 / 4</td><td class="num h">4 / 4</td><td class="num b">0.974</td></tr>
+<tr><td class="name">D2</td><td class="num b">1 / 4</td><td class="num h">3 / 4</td><td class="num b">0.962</td></tr>
+<tr><td class="name">D3</td><td class="num b">1 / 4</td><td class="num h">4 / 4</td><td class="num b">0.966</td></tr>
+<tr><td class="name">D4</td><td class="num b">2 / 4</td><td class="num h">4 / 4</td><td class="num b">0.836</td></tr>
+<tr><td class="name">D5</td><td class="num b">3 / 4</td><td class="num h">4 / 4</td><td class="num b">0.684</td></tr>
+</tbody></table></div>
+<div class="note" style="margin-top:1.1rem"><p>Baseline safety does not fall with difficulty — it is worst in the middle tiers. Badly degraded faxes fail the 0.60 confidence threshold and get parked for an operator, which is the safe outcome. Clean faxes carrying an intent the taxonomy does not model are classified confidently and wrongly, and acted on. <strong>The system is most dangerous when the transport is perfect and the document is merely unfamiliar.</strong></p></div>
+</section>
+<section>
+<h2>Baseline against hardened</h2>
+<p class="sub">Same OCR text, same random stream — the delta is the pipeline</p>
+<div class="mscroll"><table class="cmp">
+<thead><tr><th>Metric</th><th class="num">Baseline</th><th class="num">Hardened</th><th class="num">Change</th></tr></thead><tbody>
+<tr><td class="name">Intent classification accuracy</td><td class="num b">60%</td><td class="num h">90%</td><td class="num up">improved</td></tr>
+<tr><td class="name">Safe disposition rate</td><td class="num b">50%</td><td class="num h">95%</td><td class="num up">improved</td></tr>
+<tr><td class="name">Optimal disposition rate</td><td class="num b">45%</td><td class="num h">85%</td><td class="num up">improved</td></tr>
+<tr><td class="name">Entity extraction accuracy</td><td class="num b">77%</td><td class="num h">77%</td><td class="num flat">no change</td></tr>
+<tr><td class="name">Average OCR confidence</td><td class="num b">0.884</td><td class="num h">0.884</td><td class="num flat">no change</td></tr>
+<tr><td class="name">PHI misdirection events</td><td class="num b">1</td><td class="num h">0</td><td class="num up">improved</td></tr>
+<tr><td class="name">Uncontained classified spillage</td><td class="num b">1</td><td class="num h">0</td><td class="num up">improved</td></tr>
+<tr><td class="name">Phantom ERP orders</td><td class="num b">4</td><td class="num h">0</td><td class="num up">improved</td></tr>
+<tr><td class="name">Closed-loop auto-actions</td><td class="num b">12</td><td class="num h">3</td><td class="num flat">-9</td></tr>
+</tbody></table></div>
+<div class="note" style="margin-top:1.1rem"><p>The controls are not free. Closed-loop auto-actions drop from 12 to 3 — every suppressed one was wrong, so this is the intended trade, but it is a real change to the labour model the section 1.4 ROI case rests on. Adding classes also dilutes softmax mass on hybrid documents: <code>MRO-02</code>, an emergency breakdown that is both a work order and a purchase order, moves to <code>MRO_WORK_ORDER</code> and routes to CMMS instead of checking inventory. It is the one case where hardened is less correct than baseline.</p></div>
+</section>
+<section>
+<h2>Findings</h2>
+<p class="sub">14 recorded · two critical</p>
+<div class="finds">
+<article class="find find--critical">
+<div class="find__head">
+<span class="find__id">F-1</span>
+<span class="find__sev sev-critical">critical</span>
+<span class="find__t">PHI released to a law firm with no HIPAA authorization</span>
+<span class="find__c">OFF-05</span>
+</div>
+<p class="find__b">A subpoena for an employee's personnel file names someone who is also a patient. The classifier scores RECORDS_REQUEST at 0.99, the EMR is queried, and three clinical documents are faxed to the caller ID because no fax-back number was extracted.</p>
+</article>
+<article class="find find--critical">
+<div class="find__head">
+<span class="find__id">F-2</span>
+<span class="find__sev sev-critical">critical</span>
+<span class="find__t">Classified spillage is processed rather than contained</span>
+<span class="find__c">MIL-04</span>
+</div>
+<p class="find__b">A SECRET//NOFORN page misdialled onto a commercial DID is OCR'd to shared storage on a PB-8 with no COMSEC bay. Only the low-confidence fallback stops it, and that is an accident rather than a control.</p>
+</article>
+<article class="find find--high">
+<div class="find__head">
+<span class="find__id">F-3</span>
+<span class="find__sev sev-high">high</span>
+<span class="find__t">Unknown part numbers create phantom sales orders</span>
+<span class="find__c">MIL-02, MFG-02, MIL-03, MRO-04</span>
+</div>
+<p class="find__b">`undefined < qty` is false in JavaScript, so a part the ERP has never heard of passes the inventory guard. One character of OCR damage is enough: NSN 5330-01-234-5678 read as S330-01-234-5678 booked 1,200 gaskets.</p>
+</article>
+<article class="find find--high">
+<div class="find__head">
+<span class="find__id">F-4</span>
+<span class="find__sev sev-high">high</span>
+<span class="find__t">Multi-line orders are silently truncated to line one</span>
+<span class="find__c">MFG-02</span>
+</div>
+<p class="find__b">A four-line blanket order worth $214,800 becomes a single sales order for line 1. Lines 2 to 4 are discarded with no error and no audit entry, and the acknowledgment tells the customer the whole order was accepted.</p>
+</article>
+<article class="find find--high">
+<div class="find__head">
+<span class="find__id">F-5</span>
+<span class="find__sev sev-high">high</span>
+<span class="find__t">A PO revision books a second order at the pre-revision quantity</span>
+<span class="find__c">MFG-03</span>
+</div>
+<p class="find__b">A revision cutting 250 units to 175 is read at a 0.3% error rate and booked as a new order for 250. The extractor anchored on 'Original Quantity'. The customer ends up holding 500 units across two acknowledged orders.</p>
+</article>
+<article class="find find--high">
+<div class="find__head">
+<span class="find__id">F-6</span>
+<span class="find__sev sev-high">high</span>
+<span class="find__t">Non-order documents that mention parts become orders</span>
+<span class="find__c">OFF-02, MRO-03</span>
+</div>
+<p class="find__b">An invoice re-orders goods already shipped and billed. An RFQ headed THIS IS NOT AN ORDER books 500 filter elements for a customer who asked only for pricing.</p>
+</article>
+<article class="find find--high">
+<div class="find__head">
+<span class="find__id">F-7</span>
+<span class="find__sev sev-high">high</span>
+<span class="find__t">Defence documents are accepted as commercial sales orders</span>
+<span class="find__c">MIL-01, MIL-02, MIL-03</span>
+</div>
+<p class="find__b">A DD Form 1155 delivery order auto-acknowledged in under 12 seconds constitutes acceptance of the DFARS clauses it incorporates. No automated system is authorised to accept those on a contractor's behalf.</p>
+</article>
+<article class="find find--medium">
+<div class="find__head">
+<span class="find__id">F-8</span>
+<span class="find__sev sev-medium">medium</span>
+<span class="find__t">Entity confidence is gated on the document average, not the field</span>
+<span class="find__c">MRO-04</span>
+</div>
+<p class="find__b">A handwritten requisition averages 0.735 confidence, above the 0.60 floor, while the part number itself reads at 0.32. The order goes out for the wrong part in a quantity of 3 where the technician wrote 300.</p>
+</article>
+<article class="find find--medium">
+<div class="find__head">
+<span class="find__id">F-9</span>
+<span class="find__sev sev-medium">medium</span>
+<span class="find__t">OCR damage to a label silently discards the value</span>
+<span class="find__c">MFG-04</span>
+</div>
+<p class="find__b">`Part Number:` read as `Part Numbr:` loses PLT-STL-4X8-14GA entirely, even though the value itself was legible. The patterns anchor on labels, and labels run 10 to 14 characters.</p>
+</article>
+<article class="find find--medium">
+<div class="find__head">
+<span class="find__id">F-10</span>
+<span class="find__sev sev-medium">medium</span>
+<span class="find__t">Reply faxes fall back to caller ID without verification</span>
+<span class="find__c">OFF-05, OFF-02, MRO-04</span>
+</div>
+<p class="find__b">Three runs replied to the calling number because no fax-back entity survived. Harmless for an order acknowledgment; not harmless for the PHI payload in OFF-05.</p>
+</article>
+<article class="find find--medium">
+<div class="find__head">
+<span class="find__id">F-11</span>
+<span class="find__sev sev-medium">medium</span>
+<span class="find__t">Entity patterns fire on unrelated text</span>
+<span class="find__c">MIL-03, MIL-02, MFG-04</span>
+</div>
+<p class="find__b">A defence requisition with no person named on it produced PATIENT_NAME: DSN. Combined with F-1, any document classified RECORDS_REQUEST carries a fabricated patient name into a live EMR query.</p>
+</article>
+<article class="find find--low">
+<div class="find__head">
+<span class="find__id">F-12</span>
+<span class="find__sev sev-low">low</span>
+<span class="find__t">Three intent classes have no handler in the orchestrator</span>
+</div>
+<p class="find__b">LAB_RESULT, PRESCRIPTION_REFILL and INSURANCE_DENIAL have documented actions in section 13.2 and no case in the section 14.3 switch. All three fall through to human review.</p>
+</article>
+<article class="find find--low">
+<div class="find__head">
+<span class="find__id">F-13</span>
+<span class="find__sev sev-low">low</span>
+<span class="find__t">TTFA budget is exceeded on multi-page degraded faxes</span>
+<span class="find__c">MRO-05, MFG-04, OFF-04</span>
+</div>
+<p class="find__b">Three of twenty runs exceed the SKU budget. The published figures hold for a clean single page and not for the degraded multi-page traffic that dominates MRO and defence.</p>
+</article>
+<article class="find find--info">
+<div class="find__head">
+<span class="find__id">F-14</span>
+<span class="find__sev sev-info">info</span>
+<span class="find__t">Page loss is invisible in the audit trail</span>
+<span class="find__c">MRO-05, MIL-05</span>
+</div>
+<p class="find__b">Two faxes lost a page and both logged a successful reception with a valid SHA-256 seal. T.30 confirms what arrived, not what was sent.</p>
+</article>
+</div>
+</section>
+<section>
+<h2>Proposed controls</h2>
+<p class="sub">Each gated behind one flag — baseline stays byte-identical</p>
+<div class="ctrls">
+<div class="ctrl"><span class="ctrl__id">PB-C1</span><span class="ctrl__n">Classification banner detector, pre-OCR-export</span><span class="ctrl__f">addresses F-2</span></div>
+<div class="ctrl"><span class="ctrl__id">PB-C2</span><span class="ctrl__n">Extended intent taxonomy (7 new classes)</span><span class="ctrl__f">addresses F-6, F-5, F-7</span></div>
+<div class="ctrl"><span class="ctrl__id">PB-C3</span><span class="ctrl__n">PHI scope guard on the EMR path</span><span class="ctrl__f">addresses F-1</span></div>
+<div class="ctrl"><span class="ctrl__id">PB-C4</span><span class="ctrl__n">Per-entity confidence floor</span><span class="ctrl__f">addresses F-8</span></div>
+<div class="ctrl"><span class="ctrl__id">PB-C5</span><span class="ctrl__n">Reply-path guard for PHI payloads</span><span class="ctrl__f">addresses F-10</span></div>
+<div class="ctrl"><span class="ctrl__id">PB-C6</span><span class="ctrl__n">Explicit unknown-part check</span><span class="ctrl__f">addresses F-3</span></div>
+</div>
+</section>
+<section>
+<h2>Root cause</h2>
+<p>Both critical findings and four of the five high findings trace to one thing. Section 13.2 ships seven intent classes, five of them clinical. Section 13.4 ships eight entity types, four of them clinical. Every MRO work order, RFQ, change order, invoice, executed contract, MILSTRIP requisition and DFARS delivery order in this corpus has no correct destination in that model.</p>
+<p>A classifier cannot abstain from a class it does not have. Faced with a document containing a part number and a quantity it returns <code>PURCHASE_ORDER</code>, and faced with one containing records vocabulary it returns <code>RECORDS_REQUEST</code> — in both cases at high confidence, because the confidence is measured against the classes that exist rather than against the space of documents that arrive. The 0.60 threshold catches damaged pages. It cannot catch a document the model has no word for.</p>
+</section>
+<footer>
+20 synthetic faxes · seed 20260314 · deterministic · audit hash chains intact on 20/20 runs<br>
+All names, part numbers, NSNs, DODAACs, CAGE codes, contract numbers and fax numbers in the corpus are fabricated.<br>
+Source: <code>protocol-box-sim/</code> · full report: <code>reports/SIMULATION_REPORT.md</code>
+</footer>
+</div>

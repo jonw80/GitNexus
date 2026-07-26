@@ -1,0 +1,359 @@
+<title>Protocol Box — Code Remediation Report</title>
+<style>
+:root{
+  --paper:#EDE9E1; --card:#F7F4EE; --sunk:#E3DED4;
+  --ink:#1B2024; --ink-2:#4A524F; --ink-3:#7B827E;
+  --rule:#CFC8BB; --rule-2:#DED8CC;
+  --accent:#2B4C9B; --accent-soft:#E2E6F2;
+  --ok:#2F6E48; --ok-soft:#DEEADF;
+  --warn:#8C6412; --warn-soft:#F0E6CE;
+  --bad:#A33A2A; --bad-soft:#F2DED9;
+  --breach:#7A1F2B; --breach-soft:#EFD6D8;
+  --serif:ui-serif,Georgia,"Iowan Old Style","Times New Roman",serif;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+  --step:clamp(.5rem,1.2vw,1rem);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --paper:#15191C; --card:#1C2126; --sunk:#111518;
+    --ink:#E7E9E6; --ink-2:#A8B0AC; --ink-3:#79817D;
+    --rule:#2C333A; --rule-2:#242A30;
+    --accent:#8FAAE4; --accent-soft:#1F2A3F;
+    --ok:#79C193; --ok-soft:#182B21;
+    --warn:#DCB160; --warn-soft:#2C2415;
+    --bad:#E38878; --bad-soft:#311D19;
+    --breach:#EC8A94; --breach-soft:#331319;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#15191C; --card:#1C2126; --sunk:#111518;
+  --ink:#E7E9E6; --ink-2:#A8B0AC; --ink-3:#79817D;
+  --rule:#2C333A; --rule-2:#242A30;
+  --accent:#8FAAE4; --accent-soft:#1F2A3F;
+  --ok:#79C193; --ok-soft:#182B21;
+  --warn:#DCB160; --warn-soft:#2C2415;
+  --bad:#E38878; --bad-soft:#311D19;
+  --breach:#EC8A94; --breach-soft:#331319;
+}
+:root[data-theme="light"]{
+  --paper:#EDE9E1; --card:#F7F4EE; --sunk:#E3DED4;
+  --ink:#1B2024; --ink-2:#4A524F; --ink-3:#7B827E;
+  --rule:#CFC8BB; --rule-2:#DED8CC;
+  --accent:#2B4C9B; --accent-soft:#E2E6F2;
+  --ok:#2F6E48; --ok-soft:#DEEADF;
+  --warn:#8C6412; --warn-soft:#F0E6CE;
+  --bad:#A33A2A; --bad-soft:#F2DED9;
+  --breach:#7A1F2B; --breach-soft:#EFD6D8;
+}
+
+body{background:var(--paper);color:var(--ink);font-family:var(--serif);
+  line-height:1.6;-webkit-font-smoothing:antialiased;}
+.wrap{max-width:64rem;margin:0 auto;padding:clamp(1.5rem,4vw,3.5rem) clamp(1rem,4vw,2rem) 5rem;
+  display:flex;flex-direction:column;gap:clamp(2rem,4vw,3.25rem);}
+
+.eyebrow{font-family:var(--mono);font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--ink-3);margin:0 0 .75rem;}
+h1{font-size:clamp(1.9rem,4.6vw,3rem);line-height:1.08;margin:0 0 .6rem;font-weight:600;
+  letter-spacing:-.015em;text-wrap:balance;}
+.lede{font-size:clamp(1rem,1.6vw,1.15rem);color:var(--ink-2);max-width:60ch;margin:0;}
+h2{font-size:clamp(1.15rem,2.2vw,1.5rem);margin:0 0 .3rem;font-weight:600;letter-spacing:-.01em;}
+.sub{font-family:var(--mono);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-3);margin:0 0 1.15rem;}
+section{display:flex;flex-direction:column;}
+p{margin:0 0 .9rem;max-width:66ch;}
+p:last-child{margin-bottom:0;}
+code{font-family:var(--mono);font-size:.86em;background:var(--sunk);
+  padding:.08em .34em;border-radius:2px;}
+
+/* verdict banner */
+.verdict{border:1px solid var(--rule);background:var(--card);border-radius:3px;overflow:hidden;}
+.verdict__top{display:flex;flex-wrap:wrap;gap:1.5rem;padding:1.35rem 1.5rem;
+  border-bottom:1px solid var(--rule-2);}
+.vstat{display:flex;flex-direction:column;gap:.2rem;}
+.vstat__k{font-family:var(--mono);font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--ink-3);}
+.vstat__v{font-family:var(--mono);font-size:1.75rem;font-weight:600;font-variant-numeric:tabular-nums;
+  line-height:1.1;}
+.vstat__v small{font-size:.85rem;font-weight:400;color:var(--ink-3);}
+.vstat--b .vstat__v{color:var(--bad);}
+.vstat--h .vstat__v{color:var(--ok);}
+.gate{padding:1.15rem 1.5rem 1.35rem;}
+.gate__h{font-family:var(--mono);font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--ink-3);margin:0 0 .85rem;}
+.lamps{display:grid;grid-template-columns:repeat(auto-fit,minmax(13.5rem,1fr));gap:.55rem;}
+.lamp{display:flex;align-items:baseline;gap:.55rem;font-family:var(--mono);font-size:.76rem;
+  padding:.5rem .7rem;border-radius:2px;background:var(--sunk);
+  border-left:3px solid var(--ink-3);}
+.lamp--pass{border-left-color:var(--ok);background:var(--ok-soft);}
+.lamp--fail{border-left-color:var(--bad);background:var(--bad-soft);}
+.lamp__n{color:var(--ink-2);flex:1;font-size:.72rem;line-height:1.35;}
+.lamp__v{font-variant-numeric:tabular-nums;font-weight:600;}
+.lamp--pass .lamp__v{color:var(--ok);} .lamp--fail .lamp__v{color:var(--bad);}
+
+/* matrix */
+.matrix{width:100%;min-width:38rem;border-collapse:collapse;table-layout:fixed;
+  font-family:var(--mono);font-size:.75rem;}
+.matrix th,.matrix td{border:1px solid var(--rule-2);padding:0;text-align:center;}
+.matrix thead th{font-weight:500;font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-3);padding:.5rem .35rem;border:0;border-bottom:1px solid var(--rule);}
+.matrix tbody th{text-align:left;padding:.6rem .8rem .6rem 0;font-weight:500;color:var(--ink-2);
+  white-space:nowrap;border-left:0;font-size:.78rem;}
+.cellwrap{display:flex;flex-direction:column;}
+.cellwrap .row{display:flex;align-items:stretch;}
+.pip{flex:1;display:flex;align-items:center;justify-content:center;padding:.5rem .2rem;
+  font-size:.7rem;letter-spacing:.04em;border-left:3px solid transparent;}
+.pip--ok{background:var(--ok-soft);border-left-color:var(--ok);color:var(--ok);}
+.pip--bad{background:var(--bad-soft);border-left-color:var(--bad);color:var(--bad);}
+.pip--breach{background:var(--breach-soft);border-left-color:var(--breach);color:var(--breach);
+  font-weight:700;}
+.pip__lab{font-size:.62rem;color:var(--ink-3);letter-spacing:.1em;text-transform:uppercase;
+  width:1.6rem;display:flex;align-items:center;justify-content:center;background:var(--sunk);
+  border-left:0;flex:0 0 auto;}
+.mcase{font-size:.66rem;color:var(--ink-3);letter-spacing:.06em;padding:.3rem 0 .22rem;
+  background:var(--sunk);border-bottom:1px solid var(--rule-2);}
+.mscroll{overflow-x:auto;}
+.legend{display:flex;flex-wrap:wrap;gap:1rem;margin-top:.9rem;font-family:var(--mono);
+  font-size:.68rem;color:var(--ink-3);}
+.legend span{display:flex;align-items:center;gap:.4rem;}
+.swatch{width:.75rem;height:.75rem;border-radius:2px;border-left:3px solid;}
+.sw-ok{background:var(--ok-soft);border-color:var(--ok);}
+.sw-bad{background:var(--bad-soft);border-color:var(--bad);}
+.sw-breach{background:var(--breach-soft);border-color:var(--breach);}
+
+/* metric compare */
+.cmp{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:.8rem;}
+.cmp th{text-align:left;font-weight:500;font-size:.68rem;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--ink-3);padding:.45rem .6rem;
+  border-bottom:1px solid var(--rule);}
+.cmp th.num,.cmp td.num{text-align:right;font-variant-numeric:tabular-nums;}
+.cmp td{padding:.5rem .6rem;border-bottom:1px solid var(--rule-2);}
+.cmp tr:last-child td{border-bottom:0;}
+.cmp .name{font-family:var(--serif);font-size:.92rem;}
+.cmp .b{color:var(--ink-2);} .cmp .h{font-weight:600;}
+.cmp .up{color:var(--ok);} .cmp .down{color:var(--bad);} .cmp .flat{color:var(--ink-3);}
+
+/* findings */
+.finds{display:flex;flex-direction:column;gap:.5rem;}
+.find{background:var(--card);border:1px solid var(--rule-2);border-left:4px solid var(--ink-3);
+  border-radius:2px;padding:.95rem 1.15rem;}
+.find--critical{border-left-color:var(--breach);}
+.find--high{border-left-color:var(--bad);}
+.find--medium{border-left-color:var(--warn);}
+.find--low,.find--info{border-left-color:var(--ink-3);}
+.find__head{display:flex;flex-wrap:wrap;align-items:baseline;gap:.6rem;margin-bottom:.4rem;}
+.find__id{font-family:var(--mono);font-size:.72rem;color:var(--ink-3);letter-spacing:.06em;}
+.find__sev{font-family:var(--mono);font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;
+  padding:.14rem .42rem;border-radius:2px;font-weight:600;}
+.sev-critical{background:var(--breach-soft);color:var(--breach);}
+.sev-high{background:var(--bad-soft);color:var(--bad);}
+.sev-medium{background:var(--warn-soft);color:var(--warn);}
+.sev-low,.sev-info{background:var(--sunk);color:var(--ink-3);}
+.find__t{font-weight:600;font-size:1rem;flex:1;min-width:14rem;}
+.find__c{font-family:var(--mono);font-size:.68rem;color:var(--ink-3);}
+.find__b{color:var(--ink-2);font-size:.94rem;margin:0;max-width:74ch;}
+
+/* controls */
+.ctrls{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:.55rem;}
+.ctrl{background:var(--card);border:1px solid var(--rule-2);border-radius:2px;padding:.8rem .95rem;
+  display:flex;flex-direction:column;gap:.25rem;}
+.ctrl__id{font-family:var(--mono);font-size:.7rem;color:var(--accent);letter-spacing:.06em;
+  font-weight:600;}
+.ctrl__n{font-size:.92rem;}
+.ctrl__f{font-family:var(--mono);font-size:.66rem;color:var(--ink-3);}
+
+.note{border-left:3px solid var(--accent);background:var(--accent-soft);padding:.9rem 1.15rem;
+  border-radius:0 2px 2px 0;}
+.note p{font-size:.95rem;}
+
+footer{border-top:1px solid var(--rule);padding-top:1.25rem;font-family:var(--mono);
+  font-size:.7rem;color:var(--ink-3);line-height:1.7;}
+@media (max-width:640px){
+  .matrix{font-size:.68rem;}
+  .vstat__v{font-size:1.4rem;}
+}
+
+.wrap{max-width:58rem;display:block;}
+h1{font-size:clamp(1.8rem,4vw,2.6rem);margin:0 0 1rem;line-height:1.12;}
+h2{margin:2.8rem 0 .5rem;padding-top:1.2rem;border-top:1px solid var(--rule);
+  font-size:clamp(1.2rem,2.4vw,1.55rem);}
+h3{font-size:1.02rem;margin:2rem 0 .6rem;font-weight:600;letter-spacing:-.005em;}
+p{margin:0 0 1rem;}
+ul{margin:0 0 1rem;padding-left:1.15rem;display:flex;flex-direction:column;gap:.45rem;
+  max-width:68ch;}
+li{color:var(--ink-2);}
+hr{border:0;border-top:1px solid var(--rule);margin:2.4rem 0 0;}
+hr + h2{border-top:0;padding-top:0;margin-top:1.6rem;}
+pre.code{font-family:var(--mono);font-size:.78rem;line-height:1.6;background:var(--sunk);
+  border:1px solid var(--rule-2);border-left:3px solid var(--accent);border-radius:2px;
+  padding:.85rem 1rem;overflow-x:auto;margin:0 0 1rem;}
+pre.code code{background:none;padding:0;font-size:1em;}
+.tag{font-family:var(--mono);font-size:.58rem;letter-spacing:.11em;padding:.14rem .4rem;
+  border-radius:2px;font-weight:600;vertical-align:.1em;white-space:nowrap;}
+.tag--static{background:var(--bad-soft);color:var(--bad);}
+.tag--sim{background:var(--warn-soft);color:var(--warn);}
+.cmp td{vertical-align:top;font-family:var(--serif);font-size:.9rem;line-height:1.55;}
+.cmp td:first-child{font-family:var(--mono);font-size:.76rem;color:var(--ink-3);
+  white-space:nowrap;}
+.cmp th{vertical-align:bottom;}
+blockquote{margin:0 0 1rem;padding:.2rem 0 .2rem 1.1rem;border-left:3px solid var(--accent);
+  color:var(--ink-2);}
+
+</style>
+<div class="wrap">
+<h1>Protocol Box — Code Remediation Report</h1>
+<p><strong>Scope:</strong> every source block in Master Internal Build File v4.1 — <code>preprocess.py</code>, <code>classify.py</code>, <code>fhir_client.py</code>, <code>hl7_client.py</code>, <code>erp_rest_client.py</code>, <code>processor.js</code>, <code>docker-compose.yml</code>, and the operational YAML in Appendix E.</p>
+<p><strong>Method:</strong> static audit of the shipped source, plus a 20-fax behavioural simulation of the section 12–14 pipeline (<code>protocol-box-sim/</code>). Findings are marked <strong><span class="tag tag--static">STATIC</span></strong> where they are provable by reading your code, and <strong><span class="tag tag--sim">SIM</span></strong> where they depend on the behavioural model. Static findings do not rest on any assumption about your classifier.</p>
+<p><strong>Bottom line:</strong> 36 defects. The blocker is not accuracy tuning — it is that five of the subsystems the document presents as complete cannot execute as written. The dead-letter queue cannot insert a row. The retry engine it belongs to does not exist. FHIR authentication is an empty function. The document downloader calls a method that was never defined. And the container that talks to every external system of record is attached to a network with no egress.</p>
+<p>None of that is visible from the document&#x27;s prose, which describes all five as implemented.</p>
+<hr>
+<h2>P1 — Cannot execute as written</h2>
+<p>These are not edge cases. Each one fails on the first call.</p>
+<h3>1.1 The dead-letter queue cannot insert a pending row <strong><span class="tag tag--static">STATIC</span></strong></h3>
+<p><code>hl7_client.py</code>, <code>MLLPDeadLetterQueue.enqueue()</code>:</p>
+<pre class="code"><code>&#x27;NOW() + INTERVAL \&#x27;60 seconds\&#x27;&#x27; if initial_status == &#x27;PENDING&#x27; else None,</code></pre>
+<p>This is passed as a <strong>bound parameter</strong> for the <code>next_retry_at</code> TIMESTAMP column. Bound parameters are values, not SQL — the driver sends the literal 27-character string <code>NOW() + INTERVAL &#x27;60 seconds&#x27;</code>, and PostgreSQL raises <code>invalid input syntax for type timestamp</code>.</p>
+<p>Every <code>enqueue()</code> for a <code>PENDING</code> message raises. The DLQ is the component the document names as the mitigation for MLLP&#x27;s primary failure mode — silent message loss — and it cannot write a retryable row.</p>
+<p><strong>Fix:</strong> move the interval into the SQL text and bind only the delay, or compute the timestamp in Python:</p>
+<pre class="code"><code>next_retry = datetime.now(timezone.utc) + timedelta(
+    seconds=policy.initial_delay_for(error_type)
+) if initial_status == &#x27;PENDING&#x27; else None</code></pre>
+<p>Note this also removes a second defect: the 60 seconds is hardcoded, so the <code>initial_delay_seconds</code> and the per-error <code>error_overrides</code> in <code>mllp_retry.yaml</code> (<code>CONNECTION_REFUSED: 120</code>, <code>APPLICATION_ERROR: 300</code>) are ignored even when the insert is repaired.</p>
+<h3>1.2 The retry engine does not exist <strong><span class="tag tag--static">STATIC</span></strong></h3>
+<p>Section 14.1.2.1 is titled <em>Dead-Letter Queue &amp; Retry Engine</em>. The queue is implemented. The retry engine is not.</p>
+<p><code>retry_pending()</code> returns locked rows and nothing consumes them. There is no worker, no scheduler, no loop that re-sends a queued message. In consequence:</p>
+<ul><li><code>attempt_count</code> is hardcoded to <code>1</code> in the INSERT and never incremented</li><li><code>next_retry_at</code> is never advanced</li><li><code>backoff_multiplier</code>, <code>max_delay_seconds</code> and <code>max_attempts</code> have no consumer</li><li><code>terminal_conditions: max_attempts_exceeded</code> can never fire</li><li><code>terminal_conditions: message_age_exceeds_24h</code> is not implemented anywhere</li></ul>
+<p>A message that enters the DLQ stays there permanently. This is the same outcome as the silent loss the section was written to prevent, with an audit row attached.</p>
+<p><strong>Fix:</strong> implement the worker. It needs to claim a batch inside an explicit transaction, re-send through <code>HL7Client</code>, increment <code>attempt_count</code>, apply backoff from the policy, enforce <code>max_attempts</code>, and call <code>mark_delivered</code>/<code>mark_abandoned</code>. Budget this as real work, not a patch — it is the missing half of the subsystem.</p>
+<h3>1.3 <code>FOR UPDATE SKIP LOCKED</code> provides no protection as called <strong><span class="tag tag--static">STATIC</span></strong></h3>
+<p><code>retry_pending()</code> documents itself as preventing duplicate sends during HA failover. Row locks only survive inside an open transaction. The method calls <code>self.db.query(...)</code> and returns; unless that wrapper leaves an explicit transaction open, the locks release the moment the function returns and two workers can claim the same rows.</p>
+<p>The docstring asserts <em>&quot;No duplicates. No race conditions.&quot;</em> That guarantee is not established by the code shown.</p>
+<p><strong>Fix:</strong> claim rows with an <code>UPDATE ... RETURNING</code> inside a transaction the caller owns, or make the wrapper&#x27;s transaction boundary explicit and tested.</p>
+<h3>1.4 FHIR authentication is a stub <strong><span class="tag tag--static">STATIC</span></strong></h3>
+<p><code>fhir_client.py</code>:</p>
+<pre class="code"><code>def _authenticate(self, client_id, client_secret):
+    &#x27;&#x27;&#x27;OAuth 2.0 authentication with SMART on FHIR&#x27;&#x27;&#x27;
+    # Implementation depends on specific EMR
+    pass</code></pre>
+<p>Section 14.1.1 states <em>&quot;OAuth 2.0 with SMART on FHIR scopes. Credentials stored in HashiCorp Vault.&quot;</em> No token is requested, no credential is read from Vault, and no <code>Authorization</code> header is ever set on the FHIRClient session. Against a correctly configured EMR every call returns 401.</p>
+<p><strong>Fix:</strong> implement the client-credentials or backend-services flow, cache and refresh the token, and fail closed when acquisition fails. Until then no EMR integration claim in the document is substantiated.</p>
+<h3>1.5 <code>_get_auth_headers()</code> is undefined <strong><span class="tag tag--static">STATIC</span></strong></h3>
+<p><code>download_document()</code> calls <code>self._get_auth_headers()</code>. No such method exists on <code>FHIRClient</code>. Every document download raises <code>AttributeError</code>.</p>
+<p>This is the function that retrieves the PHI the whole records-request workflow exists to deliver.</p>
+<h3>1.6 <code>release_held_messages</code> uses a return value the driver does not provide <strong><span class="tag tag--static">STATIC</span></strong></h3>
+<pre class="code"><code>released = self.db.execute(&#x27;UPDATE ...&#x27;, (cleared_dlq_id,))
+if released &gt; 0:</code></pre>
+<p>DB-API <code>execute()</code> returns <code>None</code> under psycopg2 and most wrappers; the row count lives on <code>cursor.rowcount</code>. As written this raises <code>TypeError: &#x27;&gt;&#x27; not supported between instances of &#x27;NoneType&#x27; and &#x27;int&#x27;</code> — inside the sequence-gate release path, which then never completes.</p>
+<h3>1.7 The integrations container has no network egress <strong><span class="tag tag--static">STATIC</span></strong></h3>
+<p><code>docker-compose.yml</code>:</p>
+<pre class="code"><code>networks:
+  pb-internal:
+    driver: bridge
+    internal: true</code></pre>
+<p><code>pb-integrations</code> is attached to <code>pb-internal</code> only. An <code>internal: true</code> network has no gateway to the outside. The container whose entire job is reaching FHIR endpoints, ERP REST APIs and MLLP hosts cannot route to any of them.</p>
+<p><strong>Fix:</strong> give <code>pb-integrations</code> a second, egress-capable network with explicit firewall rules, and keep <code>pb-internal</code> for inter-service traffic. This is the right shape — the isolation instinct is correct, the wiring is not.</p>
+<h3>1.8 Vault is unreachable and the database has no credentials <strong><span class="tag tag--static">STATIC</span></strong></h3>
+<ul><li><code>pb-integrations</code> sets <code>VAULT_ADDR=http://localhost:8200</code>. Inside a container <code>localhost</code> is that container. Vault is not there.</li><li><code>pb-workflow</code> sets <code>DB_URL=postgresql://pb-storage:5432/protocolbox</code> with no user and no password, and is not granted the <code>db_password</code> secret, while <code>pb-storage</code> requires <code>POSTGRES_PASSWORD_FILE</code>. The workflow engine cannot authenticate to its own database.</li></ul>
+<h3>1.9 The deskew step operates on the wrong pixel set <strong><span class="tag tag--static">STATIC</span></strong></h3>
+<p><code>preprocess.py</code>:</p>
+<pre class="code"><code>img = cv2.imread(input_path, cv2.IMREAD_GRAYSCALE)
+coords = np.column_stack(np.where(img &gt; 0))
+angle = cv2.minAreaRect(coords)[-1]</code></pre>
+<p>On a grayscale scan the background is near 255 and the text is near 0, so <code>img &gt; 0</code> selects essentially the entire page. <code>minAreaRect</code> therefore returns the bounding box of the sheet, not of the text, and the angle is meaningless. The canonical form of this snippet runs on an <strong>inverted, binarized</strong> image where the text pixels are the non-zero ones.</p>
+<p>Two related defects in the same block:</p>
+<ul><li>The comment says <em>&quot;Deskew using Hough transform.&quot;</em> The code uses <code>minAreaRect</code>. Neither is wrong as a technique; the documentation does not describe the implementation.</li><li>The <code>if angle &lt; -45: angle = -(90 + angle)</code> branch is written for OpenCV&#x27;s pre-4.5 <code>minAreaRect</code> convention of <code>[-90, 0)</code>. Your target platform is Ubuntu 22.04, which ships OpenCV 4.5.4, where the range is <code>[0, 90)</code>. That branch is dead and the <code>else</code> branch rotates by the wrong angle.</li></ul>
+<p><strong>Fix:</strong> binarize and invert before measuring, and normalise the angle explicitly rather than relying on a version-dependent convention.</p>
+<h3>1.10 Cubic interpolation is applied to a binary image <strong><span class="tag tag--static">STATIC</span></strong></h3>
+<p>The pipeline order is <code>adaptiveThreshold</code> → <code>cv2.resize(..., INTER_CUBIC)</code>. Cubic interpolation of a two-valued image reintroduces intermediate grey values and soft edges, which is precisely what Tesseract&#x27;s LSTM does worst on.</p>
+<p><strong>Fix:</strong> resize before binarizing, or use <code>INTER_NEAREST</code> after. This is a one-line change with measurable OCR accuracy impact.</p>
+<hr>
+<h2>P2 — Executes, produces wrong results</h2>
+<h3>2.1 Unknown parts pass the inventory guard <strong><span class="tag tag--static">STATIC</span></strong></h3>
+<p><code>processor.js</code>:</p>
+<pre class="code"><code>const inventory = await this.erp.checkInventory(entities.PART_NUMBER);
+if (inventory.available &lt; entities.QUANTITY) { ... }</code></pre>
+<p>When the ERP has no record, <code>available</code> is <code>undefined</code>, and <code>undefined &lt; n</code> is <code>false</code> in JavaScript. The guard passes and a sales order is created against a part that does not exist. In simulation this produced 4 phantom orders in 20 faxes; a single character of OCR damage to a part number is enough to trigger it. <strong>[SIM for the rate, STATIC for the defect.]</strong></p>
+<p>If instead your unshown JS ERP client throws on 404, the outcome is different but no better: the <code>catch</code> in <code>processDocument</code> logs <code>PROCESS_ERROR</code> and <strong>rethrows</strong>, with nothing shown above to handle it. The sender receives no reply at all.</p>
+<p><strong>Fix:</strong> <code>if (inventory.available === undefined || inventory.available &lt; qty)</code>, and give <code>processDocument</code> a terminal handler that always produces a disposition.</p>
+<h3>2.2 <code>handleRecordsRequest</code> reads entities that do not exist <strong><span class="tag tag--static">STATIC</span></strong></h3>
+<pre class="code"><code>const documents = await this.fhir.getDocuments(
+    patient.id, entities.DOCUMENT_TYPE, entities.DOCUMENT_COUNT || 3
+);</code></pre>
+<p>Section 13.4 defines eight entity types: <code>PATIENT_NAME</code>, <code>DATE_OF_BIRTH</code>, <code>MRN</code>, <code>PART_NUMBER</code>, <code>QUANTITY</code>, <code>PO_NUMBER</code>, <code>FAX_NUMBER</code>, <code>FACILITY_NAME</code>. <code>DOCUMENT_TYPE</code> and <code>DOCUMENT_COUNT</code> are not among them and no extractor produces them. Both are permanently <code>undefined</code>.</p>
+<p>The system therefore returns <strong>three arbitrary documents for every records request</strong>, regardless of what was asked for. A request for &quot;last 3 progress notes and discharge summary&quot; returns whatever the EMR lists first. That is both a correctness failure and an over-disclosure risk — the requester receives PHI they did not request and may not be authorised to hold.</p>
+<h3>2.3 Patient matching takes the first hit with no uniqueness check <strong><span class="tag tag--static">STATIC</span></strong></h3>
+<p><code>fhir_client.py</code>:</p>
+<pre class="code"><code>results = search.perform_resources(self.client.server)
+return results[0] if results else None</code></pre>
+<p>There is no check that the match is unique, no minimum-criteria rule, and no disambiguation. A search on a common name returns an arbitrary patient. <code>processor.js</code> passes whatever the NER produced, and the NER produces a <code>PATIENT_NAME</code> from a regex.</p>
+<p>Section 16.3 sets false-positive PHI misdirection at <strong>0%</strong>. This line makes that target structurally unachievable: the code has no mechanism that could distinguish a correct match from a wrong one.</p>
+<p><strong>Fix:</strong> require at least two corroborating identifiers, reject on multiple matches rather than picking one, and log the candidate count for audit. This is the single highest-value change in the report for a health or VA deployment.</p>
+<h3>2.4 Sequence gating has a check-then-insert race <strong><span class="tag tag--static">STATIC</span></strong></h3>
+<p><code>_check_sequence_gate()</code> runs a <code>SELECT</code>, then <code>enqueue()</code> runs an <code>INSERT</code>, with no lock between them. Two concurrent failures for the same patient both observe no blocker and both insert as <code>PENDING</code>. The gate fails silently under exactly the concurrency it was built for.</p>
+<p><strong>Fix:</strong> advisory lock on <code>patient_mrn</code>, or a partial unique index that permits only one <code>PENDING</code>/<code>RETRYING</code> row per patient.</p>
+<h3>2.5 The gate releases all held messages simultaneously <strong><span class="tag tag--static">STATIC</span></strong></h3>
+<p><code>mllp_retry.yaml</code> states <em>&quot;Release held messages in FIFO order on upstream clear.&quot;</em> <code>release_held_messages()</code> sets every held row to <code>PENDING</code> with <code>next_retry_at = NOW()</code>. They then race through <code>retry_pending()</code>, which uses <code>SKIP LOCKED</code> across concurrent workers.</p>
+<p>For HL7 this is a clinical-safety issue, not a tidiness one: an <code>ADT^A08</code> update overtaking the <code>ADT^A04</code> admit it amends corrupts the patient record.</p>
+<p><strong>Fix:</strong> release one message at a time, or carry an explicit sequence number and have the worker refuse to send out of order.</p>
+<h3>2.6 A missing MRN argument permanently stalls a patient&#x27;s queue <strong><span class="tag tag--static">STATIC</span></strong></h3>
+<pre class="code"><code>def mark_delivered(self, dlq_id, patient_mrn=None):
+    ...
+    self.release_held_messages(dlq_id, patient_mrn)</code></pre>
+<p>and <code>release_held_messages</code> opens with <code>if not patient_mrn: return 0</code>.</p>
+<p>The signature invites <code>mark_delivered(dlq_id)</code>. Called that way, held messages for that patient are <strong>never released</strong> — a silent, permanent per-patient deadlock with no alert.</p>
+<p><strong>Fix:</strong> read <code>patient_mrn</code> from the DLQ row rather than accepting it as an optional argument.</p>
+<h3>2.7 PID-3 repetitions are not handled <strong><span class="tag tag--static">STATIC</span></strong></h3>
+<pre class="code"><code>mrn_field = fields[3]
+return mrn_field.split(&#x27;^&#x27;)[0] if mrn_field else None</code></pre>
+<p>PID-3 is a repeating field. Real EMRs commonly send <code>123456^^^MRN~987-65-4321^^^SSN</code>. The code never splits on <code>~</code> and never checks the assigning authority in PID-3.4, so it can return an SSN as the MRN — which then becomes the sequence-gate key and lands in the <code>patient_mrn</code> column.</p>
+<p><strong>Fix:</strong> split on <code>~</code>, select the repetition whose PID-3.4 identifies the MRN authority, and store nothing if no MRN-typed identifier is present.</p>
+<h3>2.8 Every retry would create a duplicate DLQ row <strong><span class="tag tag--static">STATIC</span></strong></h3>
+<p><code>enqueue()</code> always generates a fresh <code>dlq_id</code> and inserts <code>attempt_count = 1</code>. There is no upsert on an existing entry. Once the missing retry worker (1.2) exists, repeated failures will accumulate one row per attempt.</p>
+<h3>2.9 The ACK read has no overall deadline <strong><span class="tag tag--static">STATIC</span></strong></h3>
+<pre class="code"><code>while True:
+    chunk = sock.recv(4096)</code></pre>
+<p><code>settimeout()</code> applies per <code>recv()</code>, not to the loop. A peer trickling one byte every 29 seconds holds the worker indefinitely, which is the same worker-freeze the surrounding comment claims the keepalive tuning prevents.</p>
+<p><strong>Fix:</strong> compute a deadline before the loop and check it each iteration.</p>
+<h3>2.10 Document download has no status check <strong><span class="tag tag--static">STATIC</span></strong></h3>
+<p><code>requests.get(attachment.url, ...)</code> with no <code>raise_for_status()</code>. A 401 or 404 returns the error body, which is then treated as document content, merged into the reply PDF and faxed to the requester.</p>
+<h3>2.11 Reply destination is never validated <strong><span class="tag tag--static">STATIC</span></strong></h3>
+<p><code>faxSender.send({ destination: entities.FAX_NUMBER, ... })</code> with no null check, on both the order path and the PHI path. An undefined destination is an uncontrolled runtime failure rather than a routing decision. <strong><span class="tag tag--sim">SIM</span></strong> In simulation three of twenty runs had no extractable fax number, one of them the records-request case.</p>
+<h3>2.12 Hardcoded 200 DPI assumption <strong><span class="tag tag--static">STATIC</span></strong></h3>
+<p><code>scale_factor = 300 / 200</code> with the comment <em>&quot;Assume 200 DPI input.&quot;</em> ITU-T standard mode is 204×98 and fine mode 204×196. A standard-mode fax is upscaled by the wrong factor on the vertical axis, and the aspect ratio is never corrected.</p>
+<p><strong>Fix:</strong> read the DPI from the TIFF tags and scale per axis.</p>
+<hr>
+<h2>P3 — Claimed controls that are absent</h2>
+<p>Each of these is a statement made in the document that the code does not implement. For a funding submission these are the most dangerous category, because a technical reviewer who reads both will find the gap.</p>
+<div class="mscroll"><table class="cmp"><thead><tr><th>#</th><th>Claim</th><th>Location</th><th>Reality</th></tr></thead><tbody><tr><td>3.1</td><td>&quot;TLS 1.3 for all external traffic&quot;</td><td>§18, §21 STRIDE</td><td><code>hl7_client.py</code> opens a plain <code>socket.AF_INET</code> TCP connection. PHI traverses MLLP in cleartext. No stunnel config appears anywhere in the document.</td></tr><tr><td>3.2</td><td>&quot;Non-root containers&quot; as the elevation-of-privilege mitigation</td><td>§21 STRIDE</td><td><code>pb-telephony</code> runs <code>privileged: true</code> with <code>/dev:/dev</code> mounted.</td></tr><tr><td>3.3</td><td>&quot;&lt; 50ms on RK3588 NPU&quot;</td><td>§13.1</td><td><code>pb-nlp</code> sets <code>DEVICE=cpu</code> and receives no <code>/dev/rknpu0</code> mapping. Only <code>pb-ocr</code> gets the NPU.</td></tr><tr><td>3.4</td><td>Authorization before EMR access</td><td>implied throughout §14</td><td>No authorization, requester validation, or clinical-provenance check exists between classification and <code>findPatient</code>.</td></tr><tr><td>3.5</td><td>Classification handling for defence deployments</td><td>§6.2, §23</td><td>No classification-banner detection anywhere in §12–14 or Appendix E. A marked page is OCR&#x27;d to the shared volume like any other.</td></tr><tr><td>3.6</td><td><code>max_held_per_key: 50</code></td><td><code>mllp_retry.yaml</code></td><td>Never read by any code.</td></tr><tr><td>3.7</td><td><code>message_age_exceeds_24h</code> terminal condition</td><td><code>mllp_retry.yaml</code></td><td>Never implemented.</td></tr><tr><td>3.8</td><td>&quot;Complete source code… enables complete system reconstruction&quot;</td><td>§Purpose</td><td>Five subsystems in P1 cannot execute. The retry worker is absent. <code>processor.js</code> calls five methods never defined on the class — <code>generateCoverSheet</code>, <code>mergePdfs</code>, <code>routeToHumanReview</code>, <code>archiveOnly</code>, <code>createErrorResponse</code> — and imports four modules never shown: <code>./integrations/fhir</code>, <code>./integrations/erp</code>, <code>./fax/sender</code>, <code>./audit/logger</code>. Two of those duplicate the Python clients that <em>are</em> shown, so there are two unreconciled implementations of the FHIR and ERP paths.</td></tr></tbody></table></div>
+<hr>
+<h2>P4 — Design and specification defects</h2>
+<h3>4.1 Three intent classes are unreachable <strong><span class="tag tag--static">STATIC</span></strong></h3>
+<p>Section 13.2 assigns actions to <code>LAB_RESULT</code> (provider inbox), <code>PRESCRIPTION_REFILL</code> (pharmacy queue) and <code>INSURANCE_DENIAL</code> (billing). The <code>switch</code> in section 14.3 has cases for <code>RECORDS_REQUEST</code>, <code>PURCHASE_ORDER</code>, <code>CLARIFICATION_NEEDED</code> and <code>SPAM_OTHER</code> only. All three fall through to <code>default: routeToHumanReview</code>. Three of your seven shipped classes cannot reach their documented destination, and a perfect classifier cannot fix it.</p>
+<h3>4.2 <code>CLARIFICATION_NEEDED</code> is trained as a class <strong><span class="tag tag--static">STATIC</span></strong></h3>
+<p>It appears in <code>self.labels</code> in <code>classify.py</code>, so the head can predict it — and section 13.2 defines it as <em>&quot;low confidence score.&quot;</em> A label whose definition is a property of the output distribution cannot be a training target. The model can emit <code>CLARIFICATION_NEEDED</code> at 0.95 confidence, which is incoherent.</p>
+<p><strong>Fix:</strong> six trained classes; <code>CLARIFICATION_NEEDED</code> becomes a routing decision derived from the threshold, never a logit.</p>
+<h3>4.3 The taxonomy has no non-clinical classes <strong>[STATIC for the gap, SIM for the impact]</strong></h3>
+<p>Seven classes, five clinical. Eight entity types, four clinical. There is no class for an RFQ, a change order, an invoice, a work order, a MILSTRIP requisition or a contract delivery order, and no entity type for NSN, CAGE code, DODAAC or CLIN.</p>
+<p>A softmax cannot abstain from a class it does not have. Faced with an industrial or defence document the model must emit a wrong label; the only question is whether it lands above or below threshold. <strong><span class="tag tag--sim">SIM</span></strong> In simulation the military vertical was the worst served, and the failures clustered in <em>clean</em> faxes rather than degraded ones — high classifier confidence on documents the label set cannot represent.</p>
+<p>For an Army-facing product this is the gap that matters most. A DD Form 1155 delivery order auto-acknowledged as an ordinary sales order constitutes acceptance of the DFARS clauses it incorporates.</p>
+<h3>4.4 The entity model is scalar <strong><span class="tag tag--static">STATIC</span></strong></h3>
+<p><code>handlePurchaseOrder</code> reads <code>entities.PART_NUMBER</code> and <code>entities.QUANTITY</code>, singular. A multi-line purchase order has no representation, so lines beyond the first are discarded with no error and no audit entry, while the acknowledgment tells the customer the whole order was accepted. Multi-line and blanket orders are the normal form of industrial procurement, not an edge case.</p>
+<h3>4.5 The audit trail does not reconcile sent against received <strong><span class="tag tag--static">STATIC</span></strong></h3>
+<p>Section 22.2 hashes the TIFF on arrival and section 22 frames the chain as evidence of <em>&quot;integrity of the original.&quot;</em> T.30 confirms the pages that arrived, not the pages that were sent, and no page-count reconciliation exists. <strong><span class="tag tag--sim">SIM</span></strong> Two faxes in the run lost a page and both logged a clean reception with a valid seal. The legal-admissibility argument in section 22 claims more than the mechanism delivers.</p>
+<h3>4.6 Documentation defects <strong><span class="tag tag--static">STATIC</span></strong></h3>
+<ul><li>Section 20, <em>Compliance Certifications</em>, is listed in the table of contents and has <strong>no content</strong>.</li><li>The YAML blocks at <code>mllp_retry.yaml</code> (<code>error_overrides</code>, <code>terminal_conditions</code>, <code>sequence_gating</code>, <code>alerting</code>) are collapsed onto single lines with escaped <code>\#</code> and <code>\-</code>. As printed they are not parseable YAML, which undermines the rebuild-from-scratch claim.</li><li>Cover page and footer say <em>Version 4.0</em>; Document Control says <em>4.1.0</em>. Cover says <em>February 2026</em>; Document Control says <em>March 2026</em>.</li><li>Section 12.1 gives classification latency as <code>&lt; 500 ms</code>; section 13.1 gives <code>&lt; 50ms</code>. Not contradictory, but a reviewer will ask.</li></ul>
+<hr>
+<h2>Suggested sequencing</h2>
+<p>The dependency order matters more than the severity order — several P2 fixes are untestable until the P1 items land.</p>
+<p><strong>Stage 1 — make it run.</strong> 1.1, 1.4, 1.5, 1.6, 1.7, 1.8. Nothing downstream can be validated until the DLQ inserts, FHIR authenticates, and the integrations container can reach a network. Mostly small diffs; 1.7 needs a compose redesign.</p>
+<p><strong>Stage 2 — build the missing half.</strong> 1.2 and 1.3, the retry worker and its transaction boundary. This is genuine engineering, not a patch.</p>
+<p><strong>Stage 3 — stop wrong actions.</strong> 2.1, 2.2, 2.3, 2.11. 2.3 is the one to do first if you are pitching anything health- or VA-adjacent.</p>
+<p><strong>Stage 4 — correctness under load.</strong> 2.4 through 2.10.</p>
+<p><strong>Stage 5 — image pipeline.</strong> 1.9, 1.10, 2.12. Independent of everything above and directly improves the OCR accuracy figures you quote.</p>
+<p><strong>Stage 6 — model and taxonomy.</strong> 4.1, 4.2, 4.3, 4.4. The largest scope. 4.3 requires new labelled data, which is also what section 16.3&#x27;s ≥100-fax criterion demands and which the document does not show evidence of holding.</p>
+<p><strong>Stage 7 — close the claim gaps.</strong> All of P3, plus 4.5 and 4.6. These are credibility items: every one is a place where the document asserts something the code does not do.</p>
+<hr>
+<h2>What this report does not cover</h2>
+<p><strong>Test evidence.</strong> Section 16.3 defines a go-live gate requiring ≥100 faxes with ≥95% intent accuracy, ≥90% entity accuracy, 0% PHI misdirection and ≥85% OCR confidence. The document presents no measured results against it. A technical reviewer will ask for that data, and the simulation in this repository is not a substitute — it measures a stand-in classifier against synthetic documents. Collecting a real labelled corpus is prerequisite work for both the gate and for fixing 4.3.</p>
+<p><strong>Compliance and procurement.</strong> Certification posture, ATO path, supply-chain provenance of the compute module, and the specific requirements of whichever solicitation you are answering are out of scope here and should be assessed separately with your contracting contact. The RMF mapping in section 24 covers 19 controls across 7 families, one of them marked N/A; the NIST SP 800-53 Rev. 5 moderate baseline is substantially larger and spans 20 families, and section 20 is empty.</p>
+<p><strong>Hardware.</strong> The netlists, FXO carrier design and thermal analysis were not audited.</p>
+</div>

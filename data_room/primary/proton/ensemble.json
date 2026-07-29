@@ -1,7 +1,7 @@
 {
   "schema_version": "UGCT_PRIMARY_PROTON_ENSEMBLE_V1",
   "artifact_role": "primary artifact for proton coefficient and trace-anomaly extraction",
-  "closeout_status": "bounded computational certificate supplied",
+  "closeout_status": "bounded computational certificate supplied; full first-principles lattice/HPC path now open via Anvil",
   "gauge_group": "SU(3)",
   "fermion_content": ["u", "d"],
   "coefficient_formula": "m_p = c_p * Lambda_QCD",
@@ -21,5 +21,13 @@
     "volume_condition": "finite-volume corrections bounded before c_p extraction"
   },
   "derivation_formula": "c_p interval is obtained from interval division of the proton mass enclosure by the Lambda_QCD enclosure with trace-anomaly control",
-  "audit_status": "PRIMARY_ARTIFACT_PRESENT_FOR_GUARD"
+  "audit_status": "PRIMARY_ARTIFACT_PRESENT_FOR_GUARD",
+  "anvil_promotion_path": {
+    "directory": "anvil/",
+    "runbook": "anvil/RUNBOOK.md",
+    "verifier": "anvil/verify_proton_cp_anvil.py",
+    "status_file": "anvil/STATUS.json",
+    "target": "PRESERVED_LATTICE_HPC_CERTIFICATE",
+    "note": "The seven production JSON artifacts remain absent by design until a real GitNexus-orchestrated lattice run deposits first-principles data. The closed-fail verifier will report FAIL until that occurs."
+  }
 }

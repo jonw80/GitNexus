@@ -1,0 +1,26 @@
+{
+  "schema_version": "UGCT_TRACE_ANOMALY_V1",
+  "artifact_role": "Anvil promotion gate — trace anomaly / cp interval (Definition 1.16 / Theorem 21.6)",
+  "status": "BOUNDED_PRIMARY_ENSEMBLE",
+  "promotion_status": "NOT_YET_PRESERVED_LATTICE_HPC",
+  "central": null,
+  "bootstrap": null,
+  "systematics": null,
+  "c_p_interval": {
+    "primary_geometric_normalization": {
+      "Lambda_QCD_UGCT_MeV": 949.99,
+      "c_p_order_unity": {"central_clue": 0.9877, "remark": "Remark 21.4 clue 1-1/81 ≈ 0.98765 is numerically consistent but not promoted to theorem"},
+      "source": "Theorem 21.6 + first_principles_lattice_certificate.pdf"
+    },
+    "lattice_scale_presentation": {
+      "Lambda_QCD_GeV": {"lower": 0.231, "upper": 0.244},
+      "c_p": {"lower": 3.84, "upper": 4.06},
+      "mp_GeV": {"lower": 0.929, "upper": 0.947},
+      "source": "data_room/primary/proton/ensemble.json (Definition A.20 style)"
+    },
+    "rescaling_identity": "c_p_lat = c_p_UGCT * (Λ_UGCT / Λ_lat)  →  0.9877 × (0.950/0.2375) ≈ 3.95 ∈ [3.84,4.06]"
+  },
+  "honesty_note": "No raw ⟨p|T^μ_μ|p⟩ matrix elements from production ensembles. Interval is the existing bounded certificate of Theorem 21.6. Exact central value remains deferred to finite HPC run.",
+  "timestamp": "2026-07-29T00:45:00-04:00",
+  "provenance": "Directly from existing ensemble.json + first_principles_lattice_certificate.pdf + Theorem 21.6. No invented correlators."
+}

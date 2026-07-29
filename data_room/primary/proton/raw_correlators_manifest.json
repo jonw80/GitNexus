@@ -1,0 +1,15 @@
+{
+  "schema_version": "UGCT_RAW_CORRELATORS_MANIFEST_V1",
+  "artifact_role": "Anvil promotion gate — raw correlators manifest (Definition 1.16)",
+  "status": "BOUNDED_PRIMARY_ENSEMBLE",
+  "promotion_status": "NOT_YET_PRESERVED_LATTICE_HPC",
+  "SHA256": {},
+  "file_sizes": {},
+  "configuration_count": 0,
+  "ensemble_IDs": [],
+  "correlator_files": [],
+  "honesty_note": "No raw correlator files deposited. Manifest is empty by design until real lattice run produces C2(t) and C3(t,τ) measurements. No synthetic data.",
+  "related_primary": "data_room/primary/proton/ensemble.json",
+  "timestamp": "2026-07-29T00:45:00-04:00",
+  "provenance": "Structure required by Definition 1.16; content from existing bounded work only."
+}

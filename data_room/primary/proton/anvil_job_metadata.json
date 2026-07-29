@@ -1,0 +1,30 @@
+{
+  "schema_version": "UGCT_ANVIL_JOB_METADATA_V1",
+  "artifact_role": "Anvil promotion gate — job metadata for proton cp (Definition 1.16)",
+  "status": "BOUNDED_PRIMARY_ENSEMBLE",
+  "promotion_status": "NOT_YET_PRESERVED_LATTICE_HPC",
+  "primary_artifact_id": "UGCT-LATTICE-CP-2026-07-v2",
+  "source_certificate": "first_principles_lattice_certificate.pdf",
+  "theorem": "Theorem 21.6",
+  "definition": "Definition 1.16",
+  "gauge_group": "SU(3)",
+  "Nf": "2+1 (compatibility snapshot)",
+  "beta_values": null,
+  "lattice_spacings": null,
+  "volumes": null,
+  "configuration_count": 0,
+  "ensemble_ids": [],
+  "random_seeds": [],
+  "plaquette_means": null,
+  "topological_charges": null,
+  "acceptance_rates": null,
+  "autocorrelation_lengths": null,
+  "honesty_note": "No synthetic configurations. Real HMC ensembles not yet deposited. Current status is the bounded nonperturbative interval of Theorem 21.6 / ensemble.json. Full production requires SIMULATeQCD/Grid/Chroma/MILC run.",
+  "related": {
+    "ensemble": "data_room/primary/proton/ensemble.json",
+    "certificate_pdf": "first_principles_lattice_certificate.pdf",
+    "runbook": "data_room/primary/proton/anvil/RUNBOOK.md"
+  },
+  "timestamp": "2026-07-29T00:45:00-04:00",
+  "provenance": "Derived from existing UGCT primary ensemble and Theorem 21.6; no new lattice data invented."
+}

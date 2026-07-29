@@ -1,0 +1,14 @@
+{
+  "schema_version": "UGCT_FINITE_VOLUME_V1",
+  "artifact_role": "Anvil promotion gate — finite-volume study (Definition 1.16)",
+  "status": "BOUNDED_PRIMARY_ENSEMBLE",
+  "promotion_status": "NOT_YET_PRESERVED_LATTICE_HPC",
+  "volumes": null,
+  "Delta_FV": null,
+  "m_pi_L_values": null,
+  "lattice_controls_flag": true,
+  "source": "ensemble.json lattice_controls.finite_volume_error_bounded = true (compatibility flag only)",
+  "honesty_note": "No multi-volume lattice study performed. Flag inherited from primary ensemble compatibility snapshot.",
+  "timestamp": "2026-07-29T00:45:00-04:00",
+  "provenance": "Derived from existing ensemble.json controls; no invented ΔFV numbers."
+}

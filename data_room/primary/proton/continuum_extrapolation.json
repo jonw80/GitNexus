@@ -1,0 +1,16 @@
+{
+  "schema_version": "UGCT_CONTINUUM_EXTRAPOLATION_V1",
+  "artifact_role": "Anvil promotion gate — continuum extrapolation (Definition 1.16)",
+  "status": "BOUNDED_PRIMARY_ENSEMBLE",
+  "promotion_status": "NOT_YET_PRESERVED_LATTICE_HPC",
+  "lattice_spacings": null,
+  "fit_forms": ["a2", "a4", "mixed"],
+  "continuum_limit": null,
+  "systematic_uncertainty": null,
+  "chi2": null,
+  "lattice_controls_flag": true,
+  "source": "ensemble.json lattice_controls.continuum_extrapolation_verified = true (compatibility flag only)",
+  "honesty_note": "No continuum fit performed on real multi-spacing ensembles. Flag inherited from primary ensemble compatibility snapshot.",
+  "timestamp": "2026-07-29T00:45:00-04:00",
+  "provenance": "Derived from existing ensemble.json controls; no new continuum numbers invented."
+}

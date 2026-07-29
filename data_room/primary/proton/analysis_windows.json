@@ -1,0 +1,15 @@
+{
+  "schema_version": "UGCT_ANALYSIS_WINDOWS_V1",
+  "artifact_role": "Anvil promotion gate — excited-state analysis windows (Definition 1.16)",
+  "status": "BOUNDED_PRIMARY_ENSEMBLE",
+  "promotion_status": "NOT_YET_PRESERVED_LATTICE_HPC",
+  "fit_windows": null,
+  "model_selection_rule": "predetermined AIC/BIC + χ²/dof rule to be applied after real correlators exist",
+  "chi2_dof": null,
+  "AIC": null,
+  "BIC": null,
+  "selected_model": null,
+  "honesty_note": "No excited-state fits performed. Windows will be filled only after real two-point correlators from production ensembles are available.",
+  "timestamp": "2026-07-29T00:45:00-04:00",
+  "provenance": "Structure from Definition 1.16 / runbook Phase 7; no invented fit results."
+}

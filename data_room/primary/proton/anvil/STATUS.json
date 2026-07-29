@@ -1,0 +1,30 @@
+{
+  "schema_version": "UGCT_ANVIL_STATUS_V1",
+  "artifact_role": "promotion gate for Item 14 (Lattice-QCD c_p Trace Anomaly)",
+  "current_certificate_status": "BOUNDED_COMPATIBILITY / HPC_DEFERRED",
+  "target_status": "PRESERVED_LATTICE_HPC_CERTIFICATE",
+  "promotion_rule": "All seven production artifacts + verifier PASS required. No synthetic configurations. No construction of correlators from experimental proton mass.",
+  "required_artifacts": [
+    "anvil_job_metadata.json",
+    "raw_correlators_manifest.json",
+    "analysis_windows.json",
+    "continuum_extrapolation.json",
+    "finite_volume.json",
+    "scale_setting.json",
+    "trace_anomaly.json"
+  ],
+  "verifier": "verify_proton_cp_anvil.py",
+  "runbook": "RUNBOOK.md",
+  "honesty_note": "This directory is the production path. The seven JSON artifacts are intentionally absent until a real GitNexus-orchestrated lattice/HPC run (SIMULATeQCD / Grid / Chroma / MILC) deposits first-principles data. The closed-fail verifier will continue to report FAIL until that occurs.",
+  "related_existing_artifacts": {
+    "ensemble_snapshot": "../ensemble.json",
+    "tier2_certificate": "../../../data/cp_trace_anomaly_certificate.json",
+    "tier2_verified": "../../../data/cp_trace_anomaly_verified.json",
+    "flag_aggregation_script": "../../../scripts/cp_anomaly_from_flag.py"
+  },
+  "timestamp": "2026-07-29T00:40:00-04:00",
+  "provenance": {
+    "tool": "GitNexus Anvil production path deposit",
+    "operator": "jonw80 / Grok collaboration"
+  }
+}

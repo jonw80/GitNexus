@@ -1,0 +1,58 @@
+name: Package GitNexus CLI Bootstrap
+
+on:
+  push:
+    branches:
+      - chatgpt/gitnexus-cli-bootstrap-20260806
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package-cli:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: gitnexus
+    steps:
+      - name: Check out fork
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: gitnexus/package-lock.json
+
+      - name: Install exact dependencies
+        run: npm ci
+
+      - name: Build CLI
+        run: npm run build
+
+      - name: Verify executable
+        run: node dist/cli/index.js --version
+
+      - name: Remove development-only dependencies
+        run: npm prune --omit=dev
+
+      - name: Build portable Linux x64 bundle
+        run: |
+          mkdir -p ../bootstrap-artifact
+          tar --exclude='.gitnexus' -czf ../bootstrap-artifact/gitnexus-cli-linux-x64-node22.tgz \
+            package.json package-lock.json dist hooks scripts skills vendor node_modules
+          sha256sum ../bootstrap-artifact/gitnexus-cli-linux-x64-node22.tgz \
+            > ../bootstrap-artifact/SHA256SUMS.txt
+          node dist/cli/index.js --version > ../bootstrap-artifact/CLI_VERSION.txt
+
+      - name: Upload portable CLI bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitnexus-cli-linux-x64-node22
+          path: bootstrap-artifact/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7

@@ -84,6 +84,21 @@ jobs:
           (pathlib.Path(os.environ['RUNNER_TEMP'])/'v174-results'/'component10_schema.json').write_text(json.dumps(info,indent=2))
           print(json.dumps(info,indent=2))
           PY
+      - name: Decode external norm reducer
+        shell: bash
+        run: |
+          set -euo pipefail
+          RES="$RUNNER_TEMP/v174-results"
+          mkdir -p "$RES/reducer"
+          base64 --decode data_room/scripts/ym_v174_final/run_external_norm.py.xz.b64 | xz --decompress --stdout > "$RES/reducer/run_external_norm.py"
+          python "$RES/reducer/run_external_norm.py" --help > "$RES/reducer/help.txt" 2>&1 || true
+          python - <<'PY'
+          import hashlib, os, pathlib, json
+          p=pathlib.Path(os.environ['RUNNER_TEMP'])/'v174-results'/'reducer'/'run_external_norm.py'
+          out={'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()}
+          (p.parent/'sha256.json').write_text(json.dumps(out,indent=2))
+          print(out)
+          PY
       - name: Upload validated V3 inspection
         uses: actions/upload-artifact@v4
         with:
@@ -95,4 +110,10 @@ jobs:
         with:
           name: ym-v174-v3-compute-payload
           path: ${{ runner.temp }}/v174-v3/extract/
+          if-no-files-found: error
+      - name: Upload reducer inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: ym-v174-reducer-inspection
+          path: ${{ runner.temp }}/v174-results/reducer/
           if-no-files-found: error

@@ -6,49 +6,43 @@ on:
       - chatgpt/ym-v174-final-external-reduction-20260824
     paths:
       - '.github/workflows/ym-v174-final-external-reduction.yml'
-      - 'data_room/primary/ym_v174_final/**'
+      - 'data_room/primary/ym_v174_final/input_v3/**'
       - 'data_room/scripts/ym_v174_final/**'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  inspect-input:
+  inspect-v3:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-      - name: Inspect staged V174 payload
+        with:
+          ref: chatgpt/ym-v174-final-external-reduction-20260824
+      - name: Reconstruct and inspect V174 input_v3
         shell: bash
         run: |
           set -euxo pipefail
           ROOT=data_room/primary/ym_v174_final
-          echo '=== branch ==='
-          git rev-parse HEAD
-          echo '=== staged files ==='
-          find "$ROOT" -maxdepth 2 -type f -printf '%P %s bytes\n' | sort
-          echo '=== part continuity ==='
-          python - <<'PY'
-          from pathlib import Path
-          p=Path('data_room/primary/ym_v174_final/input_parts')
-          ids=sorted(int(x.name.split('_')[1]) for x in p.glob('part_*'))
-          print('parts=',ids)
-          if ids:
-              miss=[i for i in range(min(ids),max(ids)+1) if i not in ids]
-          else:
-              miss=[]
-          print('missing=',miss)
-          PY
-          echo '=== small archive ==='
-          base64 -d "$ROOT/c10_input.tar.xz.b64" > /tmp/c10_input.tar.xz
-          sha256sum /tmp/c10_input.tar.xz
-          xz -t /tmp/c10_input.tar.xz
-          mkdir -p /tmp/c10_input
-          tar -xJf /tmp/c10_input.tar.xz -C /tmp/c10_input
-          find /tmp/c10_input -maxdepth 4 -type f -printf '%P %s bytes\n' | sort | tee /tmp/c10_inventory.txt
-          echo '=== archive members ==='
-          tar -tJf /tmp/c10_input.tar.xz | sort
-      - name: Upload input inventory
-        uses: actions/upload-artifact@v4
-        with:
-          name: ym-v174-input-inventory
-          path: /tmp/c10_inventory.txt
-          if-no-files-found: error
+          mkdir -p "$ROOT/results" /tmp/v174v3
+          cat "$ROOT"/input_v3/part_* | base64 -d > /tmp/v174v3/input.tar.xz
+          xz -t /tmp/v174v3/input.tar.xz
+          sha256sum /tmp/v174v3/input.tar.xz | tee "$ROOT/results/v3_archive_sha256.txt"
+          tar -tJf /tmp/v174v3/input.tar.xz | sort | tee "$ROOT/results/v3_inventory.txt"
+          tar -xJf /tmp/v174v3/input.tar.xz -C /tmp/v174v3
+          find /tmp/v174v3 -type f -printf '%P %s bytes\n' | sort | tee "$ROOT/results/v3_sizes.txt"
+      - name: Commit inspection results
+        shell: bash
+        run: |
+          set -euxo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add data_room/primary/ym_v174_final/results/
+          if git diff --cached --quiet; then
+            echo 'No new inspection results'
+          else
+            git commit -m 'Record V174 input_v3 inventory'
+            git push origin HEAD:chatgpt/ym-v174-final-external-reduction-20260824
+          fi

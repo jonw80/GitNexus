@@ -1,0 +1,23 @@
+{
+  "schema": "GZYM_V174_GITHUB_INPUT_V3",
+  "encoding": "base64(tar.xz)",
+  "archive_sha256": "b61862df391281c9920569215c8757d6e7b6e204aaa9936dd8fe189bbe43af1a",
+  "archive_bytes": 74708,
+  "base64_chars": 99612,
+  "part_count": 13,
+  "parts": [
+    {"name":"part_000","chars":8000,"sha256":"2943e7e5b89bfcea39cd3ace858cff9b387b8301e8ddc5700a989aea35e05329"},
+    {"name":"part_001","chars":8000,"sha256":"c740564b096014809a4f002e7c342ed04428394a5f6b1fb64909123d10ccc72c"},
+    {"name":"part_002","chars":8000,"sha256":"e03a5f415d2fd52d51d47151a7bad334f4f9613add04c66211de1bd21f50afdc"},
+    {"name":"part_003","chars":8000,"sha256":"f05d4bc9f91d2cb3296a4fad776c3bd6899ad8ac02d123d234743c8181535f08"},
+    {"name":"part_004","chars":8000,"sha256":"a4808f346417df6035ebe1ad4a65035f366f76e1c878fb524eedd81df0d9b826"},
+    {"name":"part_005","chars":8000,"sha256":"84f35fd3873f6b1bbd94af6a096ed42b82b9c6d363e98280e5e47c9dd8dcb0b6"},
+    {"name":"part_006","chars":8000,"sha256":"32f7499485832d8e2d856184550528343886f51f3e3b8e24836c29cf25870f99"},
+    {"name":"part_007","chars":8000,"sha256":"f6b748884a5c937ea6f2e4561b6af0318ce3f0075d3899ee30409cdf5410f5b2"},
+    {"name":"part_008","chars":8000,"sha256":"abb0b95b53cc02ea5d2523fa7648492d9a9992d836a38aef402b299ade5ab606"},
+    {"name":"part_009","chars":8000,"sha256":"1bbb81d1a1bb4b6987a8dfea5f252982d884c5f12640d729dbf6e45cb0bdc5e4"},
+    {"name":"part_010","chars":8000,"sha256":"b49824e7eb596e40caa3807cd6e0c03f4434d0726456112927c70d7e6b6b2b87"},
+    {"name":"part_011","chars":8000,"sha256":"dfa2455048ab1410d92c77baa6684cd26568aa9ee15ff480fbb90e4402587917"},
+    {"name":"part_012","chars":3612,"sha256":"2a059aa0e1ed8c946aa1fc1c75ec004d9de407568eb3f0fc34995c2eb78c49aa"}
+  ]
+}

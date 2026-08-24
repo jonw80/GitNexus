@@ -31,7 +31,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install numerical dependencies
-        run: python -m pip install --disable-pip-version-check numpy scipy
+        run: python -m pip install --disable-pip-version-check numpy scipy opt_einsum
       - name: Reconstruct V174 V3 from manifest
         shell: bash
         run: |
@@ -129,7 +129,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install numerical dependencies
-        run: python -m pip install --disable-pip-version-check numpy scipy
+        run: python -m pip install --disable-pip-version-check numpy scipy opt_einsum
       - name: Download validated V174 compute payload
         uses: actions/download-artifact@v4
         with:
@@ -160,7 +160,7 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json, os, pathlib, math, hashlib
+          import json, os, pathlib, hashlib
           out=pathlib.Path(os.environ['RUNNER_TEMP'])/'v174-output'
           p=out/'a10_B10_component10.json'
           r=json.loads(p.read_text())

@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   inspect-inputs:
@@ -28,38 +28,46 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: chatgpt/ym-v174-final-external-reduction-20260824
-      - name: Inspect compact and V3 payloads
+      - name: Inspect V174 payloads
         shell: bash
         run: |
-          set -euxo pipefail
+          set -uox pipefail
           ROOT=data_room/primary/ym_v174_final
-          RES="$ROOT/results"
+          RES="$RUNNER_TEMP/v174-results"
           mkdir -p "$RES" /tmp/v174small /tmp/v174v3
 
-          base64 -d "$ROOT/c10_input.tar.xz.b64" > /tmp/v174small/input.tar.xz
-          xz -t /tmp/v174small/input.tar.xz
-          sha256sum /tmp/v174small/input.tar.xz | tee "$RES/compact_archive_sha256.txt"
-          tar -tJf /tmp/v174small/input.tar.xz | sort | tee "$RES/compact_inventory.txt"
-          tar -xJf /tmp/v174small/input.tar.xz -C /tmp/v174small
-          find /tmp/v174small -type f -printf '%P %s bytes\n' | sort | tee "$RES/compact_sizes.txt"
-
-          cat "$ROOT"/input_v3/part_* > /tmp/v174v3/input.b64
-          if base64 -d /tmp/v174v3/input.b64 > /tmp/v174v3/input.tar.xz 2>/tmp/v174v3/b64.err && xz -t /tmp/v174v3/input.tar.xz 2>/tmp/v174v3/xz.err; then
-            echo COMPLETE | tee "$RES/v3_status.txt"
-            sha256sum /tmp/v174v3/input.tar.xz | tee "$RES/v3_archive_sha256.txt"
-            tar -tJf /tmp/v174v3/input.tar.xz | sort | tee "$RES/v3_inventory.txt"
-            tar -xJf /tmp/v174v3/input.tar.xz -C /tmp/v174v3
-            find /tmp/v174v3 -type f -printf '%P %s bytes\n' | sort | tee "$RES/v3_sizes.txt"
+          # Compact archive is historical staging and may be truncated. Never block V3 on it.
+          if base64 -d "$ROOT/c10_input.tar.xz.b64" > /tmp/v174small/input.tar.xz 2>"$RES/compact_base64.err" && xz -t /tmp/v174small/input.tar.xz 2>"$RES/compact_xz.err"; then
+            echo COMPLETE > "$RES/compact_status.txt"
+            sha256sum /tmp/v174small/input.tar.xz > "$RES/compact_archive_sha256.txt"
+            tar -tJf /tmp/v174small/input.tar.xz | sort > "$RES/compact_inventory.txt"
           else
-            echo INCOMPLETE | tee "$RES/v3_status.txt"
-            printf 'parts=' >> "$RES/v3_status.txt"
-            ls "$ROOT"/input_v3/part_* | wc -l >> "$RES/v3_status.txt"
-            tail -c 32 /tmp/v174v3/input.b64 | tr -d '\n' | sed 's/^/tail=/' >> "$RES/v3_status.txt"
+            echo INCOMPLETE > "$RES/compact_status.txt"
+          fi
+
+          # input_v3 is authoritative. Numeric sort makes part_010 follow part_009.
+          mapfile -t PARTS < <(find "$ROOT/input_v3" -maxdepth 1 -type f -name 'part_*' | sort -V)
+          printf '%s\n' "${PARTS[@]##*/}" > "$RES/v3_parts.txt"
+          cat "${PARTS[@]}" > /tmp/v174v3/input.b64
+          if base64 -d /tmp/v174v3/input.b64 > /tmp/v174v3/input.tar.xz 2>"$RES/v3_base64.err" && xz -t /tmp/v174v3/input.tar.xz 2>"$RES/v3_xz.err"; then
+            echo COMPLETE > "$RES/v3_status.txt"
+            sha256sum /tmp/v174v3/input.tar.xz > "$RES/v3_archive_sha256.txt"
+            tar -tJf /tmp/v174v3/input.tar.xz | sort > "$RES/v3_inventory.txt"
+            mkdir -p /tmp/v174v3/extract
+            tar -xJf /tmp/v174v3/input.tar.xz -C /tmp/v174v3/extract
+            find /tmp/v174v3/extract -type f -printf '%P %s bytes\n' | sort > "$RES/v3_sizes.txt"
+          else
+            echo INCOMPLETE > "$RES/v3_status.txt"
+            printf 'part_count=%s\n' "${#PARTS[@]}" >> "$RES/v3_status.txt"
+            printf 'last_part=%s\n' "${PARTS[-1]##*/}" >> "$RES/v3_status.txt"
+            printf 'base64_chars=%s\n' "$(wc -c < /tmp/v174v3/input.b64)" >> "$RES/v3_status.txt"
+            tail -c 64 /tmp/v174v3/input.b64 | tr -d '\n' | sed 's/^/tail=/' >> "$RES/v3_status.txt"
             echo >> "$RES/v3_status.txt"
           fi
+          cat "$RES/v3_status.txt"
       - name: Upload inspection results
         uses: actions/upload-artifact@v4
         with:
           name: ym-v174-payload-inspection
-          path: data_room/primary/ym_v174_final/results/
+          path: ${{ runner.temp }}/v174-results/
           if-no-files-found: error

@@ -8,6 +8,13 @@ on:
       - '.github/workflows/ym-v174-final-external-reduction.yml'
       - 'data_room/primary/ym_v174_final/**'
       - 'data_room/scripts/ym_v174_final/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/ym-v174-final-external-reduction.yml'
+      - 'data_room/primary/ym_v174_final/**'
+      - 'data_room/scripts/ym_v174_final/**'
   workflow_dispatch:
 
 permissions:
@@ -29,7 +36,6 @@ jobs:
           RES="$ROOT/results"
           mkdir -p "$RES" /tmp/v174small /tmp/v174v3
 
-          # Complete compact archive already staged on the branch.
           base64 -d "$ROOT/c10_input.tar.xz.b64" > /tmp/v174small/input.tar.xz
           xz -t /tmp/v174small/input.tar.xz
           sha256sum /tmp/v174small/input.tar.xz | tee "$RES/compact_archive_sha256.txt"
@@ -37,7 +43,6 @@ jobs:
           tar -xJf /tmp/v174small/input.tar.xz -C /tmp/v174small
           find /tmp/v174small -type f -printf '%P %s bytes\n' | sort | tee "$RES/compact_sizes.txt"
 
-          # V3 is being staged in chunks. Inspect it only once complete.
           cat "$ROOT"/input_v3/part_* > /tmp/v174v3/input.b64
           if base64 -d /tmp/v174v3/input.b64 > /tmp/v174v3/input.tar.xz 2>/tmp/v174v3/b64.err && xz -t /tmp/v174v3/input.tar.xz 2>/tmp/v174v3/xz.err; then
             echo COMPLETE | tee "$RES/v3_status.txt"
@@ -52,16 +57,9 @@ jobs:
             tail -c 32 /tmp/v174v3/input.b64 | tr -d '\n' | sed 's/^/tail=/' >> "$RES/v3_status.txt"
             echo >> "$RES/v3_status.txt"
           fi
-      - name: Commit inspection results
-        shell: bash
-        run: |
-          set -euxo pipefail
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add data_room/primary/ym_v174_final/results/
-          if git diff --cached --quiet; then
-            echo 'No new inspection results'
-          else
-            git commit -m 'Record V174 payload inventory status'
-            git push origin HEAD:chatgpt/ym-v174-final-external-reduction-20260824
-          fi
+      - name: Upload inspection results
+        uses: actions/upload-artifact@v4
+        with:
+          name: ym-v174-payload-inspection
+          path: data_room/primary/ym_v174_final/results/
+          if-no-files-found: error

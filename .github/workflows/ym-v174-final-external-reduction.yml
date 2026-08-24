@@ -36,55 +36,58 @@ jobs:
           WORK="$RUNNER_TEMP/v174-v3"
           mkdir -p "$RES" "$WORK/repaired" "$WORK/extract"
           python - <<'PY'
-          import json, hashlib, pathlib, base64, lzma, sys
+          import json, hashlib, pathlib, base64, lzma, os
           root=pathlib.Path('data_room/primary/ym_v174_final/input_v3')
-          res=pathlib.Path(__import__('os').environ['RUNNER_TEMP'])/'v174-results'
-          work=pathlib.Path(__import__('os').environ['RUNNER_TEMP'])/'v174-v3'
+          res=pathlib.Path(os.environ['RUNNER_TEMP'])/'v174-results'
+          work=pathlib.Path(os.environ['RUNNER_TEMP'])/'v174-v3'
           m=json.loads((root/'manifest.json').read_text())
           alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
           repaired=[]; audit=[]
           for ent in m['parts']:
-              p=root/ent['name']; s=p.read_text().strip()
-              got=hashlib.sha256(s.encode()).hexdigest()
+              s=(root/ent['name']).read_text().strip(); got=hashlib.sha256(s.encode()).hexdigest()
               if len(s)==ent['chars'] and got==ent['sha256']:
                   rs=s; mode='exact'
               elif len(s)==ent['chars']-1:
                   rs=None
-                  # Exact recovery: manifest SHA fixes both missing position and character.
                   for pos in range(len(s)+1):
-                      left=s[:pos]; right=s[pos:]
                       for ch in alphabet:
-                          cand=left+ch+right
+                          cand=s[:pos]+ch+s[pos:]
                           if hashlib.sha256(cand.encode()).hexdigest()==ent['sha256']:
                               rs=cand; mode=f'insert:{pos}:{ch}'; break
                       if rs is not None: break
-                  if rs is None:
-                      raise RuntimeError(f"unable to repair {ent['name']}")
+                  if rs is None: raise RuntimeError(f'unable to repair {ent["name"]}')
               else:
-                  raise RuntimeError(f"unexpected shard {ent['name']} len={len(s)} expected={ent['chars']} sha={got}")
-              (work/'repaired'/ent['name']).write_text(rs)
-              repaired.append(rs)
-              audit.append({'name':ent['name'],'input_chars':len(s),'output_chars':len(rs),'mode':mode,'sha256':hashlib.sha256(rs.encode()).hexdigest()})
+                  raise RuntimeError(f'unexpected shard {ent["name"]}: len={len(s)} expected={ent["chars"]} sha={got}')
+              repaired.append(rs); audit.append({'name':ent['name'],'input_chars':len(s),'output_chars':len(rs),'mode':mode,'sha256':hashlib.sha256(rs.encode()).hexdigest()})
           b64=''.join(repaired)
-          if len(b64)!=m['base64_chars']: raise RuntimeError((len(b64),m['base64_chars']))
-          raw=base64.b64decode(b64,validate=True)
-          sha=hashlib.sha256(raw).hexdigest()
-          if sha!=m['archive_sha256']: raise RuntimeError(f'archive sha mismatch {sha} != {m["archive_sha256"]}')
-          if len(raw)!=m['archive_bytes']: raise RuntimeError((len(raw),m['archive_bytes']))
-          # Full XZ integrity test.
+          assert len(b64)==m['base64_chars']
+          raw=base64.b64decode(b64,validate=True); sha=hashlib.sha256(raw).hexdigest()
+          assert sha==m['archive_sha256'] and len(raw)==m['archive_bytes']
           lzma.decompress(raw)
           (work/'input.tar.xz').write_bytes(raw)
           (res/'v3_repair_audit.json').write_text(json.dumps({'schema':'GZYM_V174_V3_REPAIR_AUDIT','manifest':m,'repairs':audit,'archive_sha256':sha,'archive_bytes':len(raw)},indent=2))
           (res/'v3_status.txt').write_text('COMPLETE\n')
-          print('COMPLETE',sha,len(raw))
-          print([x for x in audit if x['mode']!='exact'])
           PY
-          tar -tJf "$WORK/input.tar.xz" | sort | tee "$RES/v3_inventory.txt"
+          tar -tJf "$WORK/input.tar.xz" | sort > "$RES/v3_inventory.txt"
           tar -xJf "$WORK/input.tar.xz" -C "$WORK/extract"
-          find "$WORK/extract" -type f -printf '%P %s bytes\n' | sort | tee "$RES/v3_sizes.txt"
+          find "$WORK/extract" -type f -printf '%P %s bytes\n' | sort > "$RES/v3_sizes.txt"
+          python - <<'PY'
+          import numpy as np, json, os, pathlib
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'v174-v3'/'extract'
+          d=np.load(root/'component10.npz',allow_pickle=False)
+          info={'files':d.files,'arrays':{k:{'shape':list(d[k].shape),'dtype':str(d[k].dtype)} for k in d.files},'constants':json.loads((root/'constants.json').read_text())}
+          (pathlib.Path(os.environ['RUNNER_TEMP'])/'v174-results'/'component10_schema.json').write_text(json.dumps(info,indent=2))
+          print(json.dumps(info,indent=2))
+          PY
       - name: Upload validated V3 inspection
         uses: actions/upload-artifact@v4
         with:
           name: ym-v174-v3-validated
           path: ${{ runner.temp }}/v174-results/
+          if-no-files-found: error
+      - name: Upload validated V3 compute payload
+        uses: actions/upload-artifact@v4
+        with:
+          name: ym-v174-v3-compute-payload
+          path: ${{ runner.temp }}/v174-v3/extract/
           if-no-files-found: error

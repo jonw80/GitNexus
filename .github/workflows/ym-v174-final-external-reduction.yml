@@ -9,8 +9,7 @@ on:
       - 'data_room/primary/ym_v174_final/**'
       - 'data_room/scripts/ym_v174_final/**'
   pull_request:
-    branches:
-      - main
+    branches: [main]
     paths:
       - '.github/workflows/ym-v174-final-external-reduction.yml'
       - 'data_room/primary/ym_v174_final/**'
@@ -28,46 +27,64 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: chatgpt/ym-v174-final-external-reduction-20260824
-      - name: Inspect V174 payloads
+      - name: Reconstruct V174 V3 from manifest
         shell: bash
         run: |
-          set -uox pipefail
-          ROOT=data_room/primary/ym_v174_final
+          set -euo pipefail
+          ROOT=data_room/primary/ym_v174_final/input_v3
           RES="$RUNNER_TEMP/v174-results"
-          mkdir -p "$RES" /tmp/v174small /tmp/v174v3
-
-          # Compact archive is historical staging and may be truncated. Never block V3 on it.
-          if base64 -d "$ROOT/c10_input.tar.xz.b64" > /tmp/v174small/input.tar.xz 2>"$RES/compact_base64.err" && xz -t /tmp/v174small/input.tar.xz 2>"$RES/compact_xz.err"; then
-            echo COMPLETE > "$RES/compact_status.txt"
-            sha256sum /tmp/v174small/input.tar.xz > "$RES/compact_archive_sha256.txt"
-            tar -tJf /tmp/v174small/input.tar.xz | sort > "$RES/compact_inventory.txt"
-          else
-            echo INCOMPLETE > "$RES/compact_status.txt"
-          fi
-
-          # input_v3 is authoritative. Numeric sort makes part_010 follow part_009.
-          mapfile -t PARTS < <(find "$ROOT/input_v3" -maxdepth 1 -type f -name 'part_*' | sort -V)
-          printf '%s\n' "${PARTS[@]##*/}" > "$RES/v3_parts.txt"
-          cat "${PARTS[@]}" > /tmp/v174v3/input.b64
-          if base64 -d /tmp/v174v3/input.b64 > /tmp/v174v3/input.tar.xz 2>"$RES/v3_base64.err" && xz -t /tmp/v174v3/input.tar.xz 2>"$RES/v3_xz.err"; then
-            echo COMPLETE > "$RES/v3_status.txt"
-            sha256sum /tmp/v174v3/input.tar.xz > "$RES/v3_archive_sha256.txt"
-            tar -tJf /tmp/v174v3/input.tar.xz | sort > "$RES/v3_inventory.txt"
-            mkdir -p /tmp/v174v3/extract
-            tar -xJf /tmp/v174v3/input.tar.xz -C /tmp/v174v3/extract
-            find /tmp/v174v3/extract -type f -printf '%P %s bytes\n' | sort > "$RES/v3_sizes.txt"
-          else
-            echo INCOMPLETE > "$RES/v3_status.txt"
-            printf 'part_count=%s\n' "${#PARTS[@]}" >> "$RES/v3_status.txt"
-            printf 'last_part=%s\n' "${PARTS[-1]##*/}" >> "$RES/v3_status.txt"
-            printf 'base64_chars=%s\n' "$(wc -c < /tmp/v174v3/input.b64)" >> "$RES/v3_status.txt"
-            tail -c 64 /tmp/v174v3/input.b64 | tr -d '\n' | sed 's/^/tail=/' >> "$RES/v3_status.txt"
-            echo >> "$RES/v3_status.txt"
-          fi
-          cat "$RES/v3_status.txt"
-      - name: Upload inspection results
+          WORK="$RUNNER_TEMP/v174-v3"
+          mkdir -p "$RES" "$WORK/repaired" "$WORK/extract"
+          python - <<'PY'
+          import json, hashlib, pathlib, base64, lzma, sys
+          root=pathlib.Path('data_room/primary/ym_v174_final/input_v3')
+          res=pathlib.Path(__import__('os').environ['RUNNER_TEMP'])/'v174-results'
+          work=pathlib.Path(__import__('os').environ['RUNNER_TEMP'])/'v174-v3'
+          m=json.loads((root/'manifest.json').read_text())
+          alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+          repaired=[]; audit=[]
+          for ent in m['parts']:
+              p=root/ent['name']; s=p.read_text().strip()
+              got=hashlib.sha256(s.encode()).hexdigest()
+              if len(s)==ent['chars'] and got==ent['sha256']:
+                  rs=s; mode='exact'
+              elif len(s)==ent['chars']-1:
+                  rs=None
+                  # Exact recovery: manifest SHA fixes both missing position and character.
+                  for pos in range(len(s)+1):
+                      left=s[:pos]; right=s[pos:]
+                      for ch in alphabet:
+                          cand=left+ch+right
+                          if hashlib.sha256(cand.encode()).hexdigest()==ent['sha256']:
+                              rs=cand; mode=f'insert:{pos}:{ch}'; break
+                      if rs is not None: break
+                  if rs is None:
+                      raise RuntimeError(f"unable to repair {ent['name']}")
+              else:
+                  raise RuntimeError(f"unexpected shard {ent['name']} len={len(s)} expected={ent['chars']} sha={got}")
+              (work/'repaired'/ent['name']).write_text(rs)
+              repaired.append(rs)
+              audit.append({'name':ent['name'],'input_chars':len(s),'output_chars':len(rs),'mode':mode,'sha256':hashlib.sha256(rs.encode()).hexdigest()})
+          b64=''.join(repaired)
+          if len(b64)!=m['base64_chars']: raise RuntimeError((len(b64),m['base64_chars']))
+          raw=base64.b64decode(b64,validate=True)
+          sha=hashlib.sha256(raw).hexdigest()
+          if sha!=m['archive_sha256']: raise RuntimeError(f'archive sha mismatch {sha} != {m["archive_sha256"]}')
+          if len(raw)!=m['archive_bytes']: raise RuntimeError((len(raw),m['archive_bytes']))
+          # Full XZ integrity test.
+          lzma.decompress(raw)
+          (work/'input.tar.xz').write_bytes(raw)
+          (res/'v3_repair_audit.json').write_text(json.dumps({'schema':'GZYM_V174_V3_REPAIR_AUDIT','manifest':m,'repairs':audit,'archive_sha256':sha,'archive_bytes':len(raw)},indent=2))
+          (res/'v3_status.txt').write_text('COMPLETE\n')
+          print('COMPLETE',sha,len(raw))
+          print([x for x in audit if x['mode']!='exact'])
+          PY
+          tar -tJf "$WORK/input.tar.xz" | sort | tee "$RES/v3_inventory.txt"
+          tar -xJf "$WORK/input.tar.xz" -C "$WORK/extract"
+          find "$WORK/extract" -type f -printf '%P %s bytes\n' | sort | tee "$RES/v3_sizes.txt"
+      - name: Upload validated V3 inspection
         uses: actions/upload-artifact@v4
         with:
-          name: ym-v174-payload-inspection
+          name: ym-v174-v3-validated
           path: ${{ runner.temp }}/v174-results/
           if-no-files-found: error

@@ -89,13 +89,15 @@ jobs:
             --manifest "$RUNNER_TEMP/cg_inventory_manifest.json"
           cp "$RUNNER_TEMP/cg_inventory_manifest.json" .
       - name: Package inventory
-        run: tar czf "$RUNNER_TEMP/cg_inventory.tar.gz" -C "$RUNNER_TEMP" v174-cache
+        run: |
+          mkdir -p artifact
+          tar czf artifact/cg_inventory.tar.gz -C "$RUNNER_TEMP" v174-cache
+          cp "$RUNNER_TEMP/cg_inventory_manifest.json" artifact/
+          ls -la artifact
       - uses: actions/upload-artifact@v4
         with:
           name: v174-cg-inventory
-          path: |
-            ${{ runner.temp }}/cg_inventory.tar.gz
-            cg_inventory_manifest.json
+          path: artifact/
           retention-days: 90
 
   reduce:
@@ -131,9 +133,14 @@ jobs:
         env:
           V174_CACHE: ${{ runner.temp }}/v174-cache
         run: |
-          tar xzf "$RUNNER_TEMP/inv/cg_inventory.tar.gz" -C "$RUNNER_TEMP"
-          python data_room/scripts/ym_v174_final/build_cg_inventory.py \
-            --verify "$RUNNER_TEMP/inv/cg_inventory_manifest.json"
+          set -euxo pipefail
+          find "$RUNNER_TEMP/inv" -type f -printf '%p %s\n'
+          TAR=$(find "$RUNNER_TEMP/inv" -name 'cg_inventory.tar.gz' | head -n 1)
+          MANIFEST=$(find "$RUNNER_TEMP/inv" -name 'cg_inventory_manifest.json' | head -n 1)
+          test -n "$TAR" && test -n "$MANIFEST"
+          tar xzf "$TAR" -C "$RUNNER_TEMP"
+          ls -la "$RUNNER_TEMP/v174-cache"
+          python data_room/scripts/ym_v174_final/build_cg_inventory.py --verify "$MANIFEST"
       - name: Reduce to N_D
         env:
           V174_INPUT: ${{ runner.temp }}/v174-v3/extract

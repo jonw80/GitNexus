@@ -93,6 +93,8 @@ jobs:
           mkdir -p artifact
           tar czf artifact/cg_inventory.tar.gz -C "$RUNNER_TEMP" v174-cache
           cp "$RUNNER_TEMP/cg_inventory_manifest.json" artifact/
+          cp "$RUNNER_TEMP/v174-out/phase.npy" artifact/ || true
+          cp "$RUNNER_TEMP/v174-out/logc.npy" artifact/ || true
           ls -la artifact
       - uses: actions/upload-artifact@v4
         with:
@@ -149,12 +151,17 @@ jobs:
           V174_REDUCER: ${{ runner.temp }}/run_external_norm.py
           V174_SHARDS: ${{ runner.temp }}/v174-shards
         run: |
+          set -euxo pipefail
           mkdir -p "$V174_OUT" "$V174_SHARDS"
+          # Prefer the Phase 1 phase vector so we do not re-solve it.
+          find "$RUNNER_TEMP/inv" -name 'phase.npy' -exec cp {} "$V174_OUT/phase.npy" \;
+          find "$RUNNER_TEMP/inv" -name 'logc.npy' -exec cp {} "$V174_OUT/logc.npy" \;
+          ls -la "$V174_OUT"
           D=data_room/scripts/ym_v174_final/driver.py
-          python "$D" cross 0 7576 100000
-          python "$D" merge
-          python "$D" emit
-          python "$D" reduce
+          python -u "$D" cross 0 7576 100000 2>&1 | tee -a "$V174_OUT/driver.log"
+          python -u "$D" merge 2>&1 | tee -a "$V174_OUT/driver.log"
+          python -u "$D" emit 2>&1 | tee -a "$V174_OUT/driver.log"
+          python -u "$D" reduce 2>&1 | tee -a "$V174_OUT/driver.log"
       - name: Enforce the pre-registered floor
         env:
           V174_OUT: ${{ runner.temp }}/v174-out

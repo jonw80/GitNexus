@@ -1,19 +1,6 @@
 name: YM V174 Final External Reduction
 
 on:
-  push:
-    branches:
-      - chatgpt/ym-v174-final-external-reduction-20260824
-    paths:
-      - '.github/workflows/ym-v174-final-external-reduction.yml'
-      - 'data_room/primary/ym_v174_final/**'
-      - 'data_room/scripts/ym_v174_final/**'
-  pull_request:
-    branches: [main]
-    paths:
-      - '.github/workflows/ym-v174-final-external-reduction.yml'
-      - 'data_room/primary/ym_v174_final/**'
-      - 'data_room/scripts/ym_v174_final/**'
   workflow_dispatch:
 
 permissions:

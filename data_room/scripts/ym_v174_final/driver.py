@@ -36,10 +36,19 @@ def _phase():
     p = OUT / 'phase.npy'
     if p.exists():
         return np.load(p)
+    import scipy.sparse as sp
     C, outside = G['low_raw_C']()
     s, ncc, contr, eigres, logc = G['recover_phase'](C)
-    assert ncc == 1 and contr == 0, (ncc, contr)
+    # Save first so a failed check still leaves an artifact.
     np.save(p, s); np.save(OUT / 'logc.npy', logc)
+    print(f'PHASE ncc={ncc} contr={contr} eigres={eigres} nnz={C.nnz}', flush=True)
+    _M = (G['A'] * (C @ sp.diags(s.astype(float))) + sp.diags(logc)).tocsr()
+    _D = (_M - _M.T).tocoo()
+    phase_sym = float(np.abs(_D.data).max()) if _D.nnz else 0.0
+    del _M, _D
+    print(f'PHASE_SYMMETRY {phase_sym}', flush=True)
+    if ncc != 1 or contr != 0 or phase_sym > 1e-8:
+        raise RuntimeError(('phase check failed', ncc, contr, phase_sym))
     del C; gc.collect()
     return s
 

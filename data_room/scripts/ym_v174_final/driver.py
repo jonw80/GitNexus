@@ -223,9 +223,10 @@ def stage_emit():
     print(f'EMIT_CROSSING keys={len(K)} W2={float(W @ W) if len(W) else 0.0}', flush=True)
     try:
         fibers, wnorm = G['group_W_fibers'](K, W)
-    except Exception:
+    except Exception as e:
         import traceback
         traceback.print_exc()
+        print(f'::error::Emit group_W_fibers {type(e).__name__}: {e!r}', flush=True)
         raise
     print('fiber norm', wnorm, 'n_fibers', len(fibers), flush=True)
     emit = G['emit_external'](fibers, 128)
@@ -258,11 +259,17 @@ def stage_reduce():
 
 
 if __name__ == '__main__':
-    cmd = sys.argv[1]
-    if cmd == 'cross':
-        lo = int(sys.argv[2]); hi = int(sys.argv[3])
-        b = float(sys.argv[4]) if len(sys.argv) > 4 else 170.0
-        stage_cross(lo, hi, b)
-    elif cmd == 'merge': stage_merge()
-    elif cmd == 'emit': stage_emit()
-    elif cmd == 'reduce': stage_reduce()
+    try:
+        cmd = sys.argv[1]
+        if cmd == 'cross':
+            lo = int(sys.argv[2]); hi = int(sys.argv[3])
+            b = float(sys.argv[4]) if len(sys.argv) > 4 else 170.0
+            stage_cross(lo, hi, b)
+        elif cmd == 'merge': stage_merge()
+        elif cmd == 'emit': stage_emit()
+        elif cmd == 'reduce': stage_reduce()
+        else:
+            raise SystemExit(f'unknown cmd {cmd}')
+    except Exception as e:
+        print(f'::error::driver.py {cmd if "cmd" in dir() else "?"} {type(e).__name__}: {e!r}', flush=True)
+        raise

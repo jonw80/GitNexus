@@ -47,6 +47,7 @@ def _phase():
           'phase_sym': phase_sym, 'nnz': int(C.nnz), 'outside': int(outside)}
     stats_path.write_text(json.dumps(st, indent=2))
     if ncc != 1 or contr != 0 or phase_sym > 1e-8:
+        print(f'::error::phase check failed ncc={ncc} contr={contr} phase_sym={phase_sym}', flush=True)
         raise RuntimeError(('phase check failed', ncc, contr, phase_sym))
     del C; gc.collect()
     return s
@@ -311,11 +312,18 @@ def stage_reduce():
 
 
 if __name__ == '__main__':
-    cmd = sys.argv[1]
-    if cmd == 'cross':
-        lo = int(sys.argv[2]); hi = int(sys.argv[3])
-        b = float(sys.argv[4]) if len(sys.argv) > 4 else 170.0
-        stage_cross(lo, hi, b)
-    elif cmd == 'merge': stage_merge()
-    elif cmd == 'emit': stage_emit()
-    elif cmd == 'reduce': stage_reduce()
+    cmd = None
+    try:
+        cmd = sys.argv[1]
+        if cmd == 'cross':
+            lo = int(sys.argv[2]); hi = int(sys.argv[3])
+            b = float(sys.argv[4]) if len(sys.argv) > 4 else 170.0
+            stage_cross(lo, hi, b)
+        elif cmd == 'merge': stage_merge()
+        elif cmd == 'emit': stage_emit()
+        elif cmd == 'reduce': stage_reduce()
+        else:
+            raise SystemExit(f'unknown cmd {cmd}')
+    except Exception as e:
+        print(f'::error::driver_generic.py {cmd} {type(e).__name__}: {e!r}', flush=True)
+        raise

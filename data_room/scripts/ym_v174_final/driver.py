@@ -216,12 +216,28 @@ def stage_merge():
 
 
 def stage_emit():
-    z = np.load(OUT / 'crossing_component10.npz')
+    pth = OUT / 'crossing_component10.npz'
+    print(f'EMIT_START {pth} exists={pth.exists()} size={pth.stat().st_size if pth.exists() else None}', flush=True)
+    z = np.load(pth)
     K, W = z['states56'], z['W']
-    fibers, wnorm = G['group_W_fibers'](K, W)
-    print('fiber norm', wnorm, flush=True)
+    print(f'EMIT_CROSSING keys={len(K)} W2={float(W @ W) if len(W) else 0.0}', flush=True)
+    try:
+        fibers, wnorm = G['group_W_fibers'](K, W)
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        raise
+    print('fiber norm', wnorm, 'n_fibers', len(fibers), flush=True)
     emit = G['emit_external'](fibers, 128)
-    print(json.dumps(emit, indent=2), flush=True)
+    def _ser(o):
+        if isinstance(o, (np.integer,)):
+            return int(o)
+        if isinstance(o, (np.floating,)):
+            return float(o)
+        if isinstance(o, np.ndarray):
+            return o.tolist()
+        raise TypeError(type(o))
+    print(json.dumps(emit, indent=2, default=_ser), flush=True)
 
 
 def stage_reduce():

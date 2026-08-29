@@ -143,6 +143,71 @@ jobs:
           tar xzf "$TAR" -C "$RUNNER_TEMP"
           ls -la "$RUNNER_TEMP/v174-cache"
           python data_room/scripts/ym_v174_final/build_cg_inventory.py --verify "$MANIFEST"
+      - name: Prepare Phase 2 workspace
+        env:
+          V174_OUT: ${{ runner.temp }}/v174-out
+          V174_SHARDS: ${{ runner.temp }}/v174-shards
+        run: |
+          set -euxo pipefail
+          mkdir -p "$V174_OUT" "$V174_SHARDS"
+          find "$RUNNER_TEMP/inv" -name 'phase.npy' -exec cp {} "$V174_OUT/phase.npy" \;
+          find "$RUNNER_TEMP/inv" -name 'logc.npy' -exec cp {} "$V174_OUT/logc.npy" \;
+          ls -la "$V174_OUT"
+      - name: Cross
+        env:
+          V174_INPUT: ${{ runner.temp }}/v174-v3/extract
+          V174_OUT: ${{ runner.temp }}/v174-out
+          V174_CACHE: ${{ runner.temp }}/v174-cache
+          V174_REDUCER: ${{ runner.temp }}/run_external_norm.py
+          V174_SHARDS: ${{ runner.temp }}/v174-shards
+          OMP_NUM_THREADS: '1'
+          OPENBLAS_NUM_THREADS: '1'
+          MKL_NUM_THREADS: '1'
+          NUMEXPR_NUM_THREADS: '1'
+          PYTHONUNBUFFERED: '1'
+        run: |
+          set -euxo pipefail
+          D=data_room/scripts/ym_v174_final/driver.py
+          python -u "$D" cross 0 7576 100000 2>&1 | tee -a "$V174_OUT/driver.log"
+      - name: Merge (no prefix double-count)
+        env:
+          V174_INPUT: ${{ runner.temp }}/v174-v3/extract
+          V174_OUT: ${{ runner.temp }}/v174-out
+          V174_CACHE: ${{ runner.temp }}/v174-cache
+          V174_REDUCER: ${{ runner.temp }}/run_external_norm.py
+          V174_SHARDS: ${{ runner.temp }}/v174-shards
+          PYTHONUNBUFFERED: '1'
+        run: |
+          set -euxo pipefail
+          D=data_room/scripts/ym_v174_final/driver.py
+          python -u "$D" merge 2>&1 | tee -a "$V174_OUT/driver.log"
+          test -f "$V174_OUT/merge_report.json"
+          python - <<'PY'
+          import json, os, pathlib, sys
+          r=json.loads((pathlib.Path(os.environ['V174_OUT'])/'merge_report.json').read_text())
+          print(json.dumps(r, indent=2))
+          if not r.get('complete'):
+              sys.exit('incomplete crossing')
+          used=r.get('shards_used') or []
+          if len(used)!=1:
+              sys.exit(f'expected one shard, got {used}')
+          PY
+      - name: Emit
+        env:
+          V174_INPUT: ${{ runner.temp }}/v174-v3/extract
+          V174_OUT: ${{ runner.temp }}/v174-out
+          V174_CACHE: ${{ runner.temp }}/v174-cache
+          V174_REDUCER: ${{ runner.temp }}/run_external_norm.py
+          V174_SHARDS: ${{ runner.temp }}/v174-shards
+          OMP_NUM_THREADS: '1'
+          OPENBLAS_NUM_THREADS: '1'
+          MKL_NUM_THREADS: '1'
+          NUMEXPR_NUM_THREADS: '1'
+          PYTHONUNBUFFERED: '1'
+        run: |
+          set -euxo pipefail
+          D=data_room/scripts/ym_v174_final/driver.py
+          python -u "$D" emit 2>&1 | tee -a "$V174_OUT/driver.log"
       - name: Reduce to N_D
         env:
           V174_INPUT: ${{ runner.temp }}/v174-v3/extract
@@ -150,17 +215,10 @@ jobs:
           V174_CACHE: ${{ runner.temp }}/v174-cache
           V174_REDUCER: ${{ runner.temp }}/run_external_norm.py
           V174_SHARDS: ${{ runner.temp }}/v174-shards
+          PYTHONUNBUFFERED: '1'
         run: |
           set -euxo pipefail
-          mkdir -p "$V174_OUT" "$V174_SHARDS"
-          # Prefer the Phase 1 phase vector so we do not re-solve it.
-          find "$RUNNER_TEMP/inv" -name 'phase.npy' -exec cp {} "$V174_OUT/phase.npy" \;
-          find "$RUNNER_TEMP/inv" -name 'logc.npy' -exec cp {} "$V174_OUT/logc.npy" \;
-          ls -la "$V174_OUT"
           D=data_room/scripts/ym_v174_final/driver.py
-          python -u "$D" cross 0 7576 100000 2>&1 | tee -a "$V174_OUT/driver.log"
-          python -u "$D" merge 2>&1 | tee -a "$V174_OUT/driver.log"
-          python -u "$D" emit 2>&1 | tee -a "$V174_OUT/driver.log"
           python -u "$D" reduce 2>&1 | tee -a "$V174_OUT/driver.log"
       - name: Enforce the pre-registered floor
         env:
@@ -185,5 +243,12 @@ jobs:
         if: always()
         with:
           name: v174-reduction-results
-          path: ${{ runner.temp }}/v174-out
+          path: |
+            ${{ runner.temp }}/v174-out/a10_B10_component10.json
+            ${{ runner.temp }}/v174-out/merge_report.json
+            ${{ runner.temp }}/v174-out/driver.log
+            ${{ runner.temp }}/v174-out/crossing_component10.npz
+            ${{ runner.temp }}/v174-out/phase.npy
+            ${{ runner.temp }}/v174-out/logc.npy
+          if-no-files-found: warn
           retention-days: 90

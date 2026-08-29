@@ -62,6 +62,8 @@ jobs:
           mkdir -p artifact
           tar czf artifact/cg_inventory.tar.gz -C "$RUNNER_TEMP" v174-cache
           cp "$RUNNER_TEMP/cg_inventory_manifest.json" artifact/
+          cp "$RUNNER_TEMP/v174-out/phase.npy" artifact/ || true
+          cp "$RUNNER_TEMP/v174-out/logc.npy" artifact/ || true
           ls -la artifact
       - uses: actions/upload-artifact@v4
         with:
@@ -129,6 +131,9 @@ jobs:
         run: |
           set -euxo pipefail
           mkdir -p "$V174_OUT" "$V174_SHARDS"
+          find "$RUNNER_TEMP/inv" -name 'phase.npy' -exec cp {} "$V174_OUT/phase.npy" \;
+          find "$RUNNER_TEMP/inv" -name 'logc.npy' -exec cp {} "$V174_OUT/logc.npy" \;
+          ls -la "$V174_OUT" || true
           ROOT=data_room/primary/ym_v174_final/crossing/component${COMP}
           if ls "$ROOT"/part_* >/dev/null 2>&1; then
             python - <<'PY'

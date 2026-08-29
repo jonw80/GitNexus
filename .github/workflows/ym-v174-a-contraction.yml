@@ -10,7 +10,9 @@ on:
     paths:
       - '.github/workflows/ym-v174-a-contraction.yml'
       - 'data_room/scripts/ym_v174_final/draw_pullback_full.py'
+      - 'data_room/scripts/ym_v174_final/driver_generic.py'
       - 'data_room/primary/ym_v174_final/crossing/**'
+      - 'data_room/primary/ym_v174_final/input_v3/**'
   workflow_dispatch:
 
 permissions:
@@ -75,7 +77,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        component: [10, 0, 15, 4]
+        # 0/15/4 need component npz payloads not in input_v3.
+        component: [10]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -109,24 +112,45 @@ jobs:
           MANIFEST=$(find "$RUNNER_TEMP/inv" -name 'cg_inventory_manifest.json' | head -n 1)
           tar xzf "$TAR" -C "$RUNNER_TEMP"
           python data_room/scripts/ym_v174_final/build_cg_inventory.py --verify "$MANIFEST"
-      - name: Reassemble crossing npz
+      - name: Crossing npz (build in CI; do not LLM-transcribe part_*)
         env:
           COMP: ${{ matrix.component }}
+          V174_INPUT: ${{ runner.temp }}/v174-v3/extract
+          V174_OUT: ${{ runner.temp }}/v174-out
+          V174_CACHE: ${{ runner.temp }}/v174-cache
+          V174_REDUCER: ${{ runner.temp }}/run_external_norm_generic.py
+          V174_SHARDS: ${{ runner.temp }}/v174-shards
+          V174_COMPONENT: ${{ matrix.component }}
+          OMP_NUM_THREADS: '1'
+          OPENBLAS_NUM_THREADS: '1'
+          MKL_NUM_THREADS: '1'
+          NUMEXPR_NUM_THREADS: '1'
+          PYTHONUNBUFFERED: '1'
         run: |
           set -euxo pipefail
+          mkdir -p "$V174_OUT" "$V174_SHARDS"
           ROOT=data_room/primary/ym_v174_final/crossing/component${COMP}
-          python - <<'PY'
+          if ls "$ROOT"/part_* >/dev/null 2>&1; then
+            python - <<'PY'
           import base64, pathlib, os, hashlib
           comp=os.environ['COMP']
           root=pathlib.Path(f'data_room/primary/ym_v174_final/crossing/component{comp}')
           parts=sorted(root.glob('part_*'))
-          assert parts, root
           b64=''.join(p.read_text().strip() for p in parts)
           raw=base64.b64decode(b64, validate=True)
           out=pathlib.Path(os.environ['RUNNER_TEMP'])/f'crossing_component{comp}.npz'
           out.write_bytes(raw)
-          print('wrote', out, out.stat().st_size, hashlib.sha256(raw).hexdigest())
+          print('reassembled', out, out.stat().st_size, hashlib.sha256(raw).hexdigest())
           PY
+          else
+            echo "No part_* for component ${COMP}; building crossing from input_v3 via driver_generic"
+            D=data_room/scripts/ym_v174_final/driver_generic.py
+            python -u "$D" cross 0 7576 100000
+            python -u "$D" merge
+            cp "$V174_OUT/crossing_component${COMP}.npz" "$RUNNER_TEMP/crossing_component${COMP}.npz"
+            ls -la "$RUNNER_TEMP/crossing_component${COMP}.npz"
+            test -f "$V174_OUT/merge_report.json" && cat "$V174_OUT/merge_report.json"
+          fi
       - name: Run Draw-pullback contraction
         env:
           V174_INPUT: ${{ runner.temp }}/v174-v3/extract

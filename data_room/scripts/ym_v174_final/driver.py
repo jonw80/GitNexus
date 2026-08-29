@@ -138,13 +138,56 @@ def stage_cross(lo, hi, budget=170.0):
     return i
 
 
+
+def _select_shards():
+    """Prefer a single full-coverage shard; never sum nested lo=0 prefixes."""
+    files = list(SHARD.glob('cross_*.npz'))
+    parsed = []
+    for f in files:
+        parts = f.stem.split('_')
+        lo = int(parts[1]); hi = int(parts[2])
+        parsed.append((lo, hi, f))
+    if not parsed:
+        raise RuntimeError('no cross_*.npz shards')
+    full = [p for p in parsed if p[0] == 0 and p[1] == NLOW]
+    if full:
+        chosen = max(full, key=lambda p: p[1])
+        skipped = [p[2].name for p in parsed if p[2] != chosen[2]]
+        if skipped:
+            print('MERGE_SKIP_OVERLAPPING', skipped, 'using', chosen[2].name, flush=True)
+        return [chosen]
+    by_lo = {}
+    for p in parsed:
+        by_lo.setdefault(p[0], []).append(p)
+    selected = []
+    skipped = []
+    for lo, group in sorted(by_lo.items()):
+        group.sort(key=lambda p: p[1])
+        his = [g[1] for g in group]
+        nested = all(his[i] <= his[i+1] for i in range(len(his)-1))
+        if nested and len(group) > 1:
+            selected.append(group[-1])
+            skipped.extend(g[2].name for g in group[:-1])
+        else:
+            selected.extend(group)
+    if skipped:
+        print('MERGE_SKIP_PREFIXES', skipped, flush=True)
+    selected.sort()
+    for i in range(1, len(selected)):
+        if selected[i][0] < selected[i-1][1]:
+            raise RuntimeError(('refusing to merge overlapping shards',
+                                selected[i-1][2].name, selected[i][2].name))
+    return selected
+
+
 def stage_merge():
     accR = {}; accW = {}; br = oc = 0; recip = 0.0
-    files = sorted(SHARD.glob('cross_*.npz'), key=lambda p: int(p.stem.split('_')[1]))
+    chosen = _select_shards()
     cov = []
-    for f in files:
+    for lo, hi, f in chosen:
         z = np.load(f)
-        lo = int(f.stem.split('_')[1]); hi = int(z['meta'][3]); cov.append((lo, hi))
+        hi_meta = int(z['meta'][3])
+        cov.append((lo, hi_meta))
         for row, r, w in zip(z['K'], z['R'], z['W']):
             k = bytes(row.tolist())
             if r: accR[k] = accR.get(k, 0.0) + float(r)
@@ -156,15 +199,19 @@ def stage_merge():
         else: merged.append((a, b))
     complete = merged == [(0, NLOW)]
     keys = sorted(set(accR) | set(accW))
-    K = np.frombuffer(b''.join(keys), dtype=np.uint8).reshape(-1, 56).copy()
+    K = np.frombuffer(b''.join(keys), dtype=np.uint8).reshape(-1, 56).copy() if keys else np.zeros((0, 56), np.uint8)
     R = np.array([accR.get(k, 0.0) for k in keys]); W = np.array([accW.get(k, 0.0) for k in keys])
-    R2 = float(R @ R); W2 = float(W @ W)
+    R2 = float(R @ R) if len(R) else 0.0; W2 = float(W @ W) if len(W) else 0.0
     np.savez_compressed(OUT / 'crossing_component10.npz', states56=K, R=R, W=W)
     rep = {'coverage': merged, 'complete': complete, 'targets': len(keys),
            'R2': R2, 'W2': W2, 'gram_abs_diff': abs(R2 - W2),
            'expected_G': G['EXPECTED_G'], 'expected_abs_diff': abs(R2 - G['EXPECTED_G']),
-           'branches': br, 'outcomes': oc, 'reciprocity': recip}
+           'branches': br, 'outcomes': oc, 'reciprocity': recip,
+           'shards_used': [f.name for _, _, f in chosen]}
+    (OUT / 'merge_report.json').write_text(json.dumps(rep, indent=2))
     print(json.dumps(rep, indent=2), flush=True)
+    if not complete:
+        raise RuntimeError(('incomplete crossing coverage', merged, 'expected', [(0, int(NLOW))]))
     return rep
 
 

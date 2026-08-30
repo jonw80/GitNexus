@@ -14,7 +14,7 @@ Stages
   emit               group_W_fibers + emit_external -> OUT/buckets
   reduce             reduce_external -> N_D, then A10/M2/B*B and the PSD floor
 """
-import os, sys, math, itertools, time, json, pathlib, gc
+import os, sys, math, itertools, time, json, pathlib, gc, functools, hashlib
 import numpy as np
 
 os.environ.setdefault('V174_INPUT', '/tmp/v174b/payload')
@@ -316,6 +316,96 @@ def group_W_fibers_surveyed(G, K, W, strict=True):
             raise RuntimeError(('fiber integrity failures', {k: len(v) for k, v in bad.items()},
                                 'excluded_norm2', bad_n2))
     return fib, n
+
+def _direct_basis_dense(sl):
+    """G['direct_basis_sorted'], but the singlet subspace is found densely.
+
+    The pinned reducer solves for it with spla.eigsh(Gram, k=k+1, which='SM').
+    Gram's kernel is exactly k-fold degenerate and its next eigenvalue is 1.0,
+    and ARPACK does not reliably separate the two: on some hosts it returns
+    spurious 1.0 eigenpairs in place of true zeros, the k-th smallest lands at
+    1.0, and the 'direct kernel residual eig' guard fires. Which label tuple
+    trips it is a function of the host's rounding rather than of the
+    mathematics -- CI failed on ((0,1),(0,2),(0,3),(1,0),(1,0),(4,0)) and this
+    box on ((0,0),(1,0),(1,0),(1,1),(1,1),(2,1)) -- so it is not reproducible
+    and not a bad multiplicity: for the tuple CI failed on, Littlewood-Richardson
+    over SU(3) gives exactly 8 singlets, which is what sm() returns.
+
+    Gram is nz x nz with nz of order 1e3, so it is diagonalised densely here:
+    same subspace, deterministic, no convergence tolerance to tune. Verified to
+    span the identical kernel -- all k overlap singular values against the
+    ARPACK result are 1.0 to 1e-15.
+
+    Installed over the reducer's binding rather than edited into
+    run_external_norm.py.xz.b64, which stays byte-identical and still verifies
+    against its pinned sha256.
+    """
+    np_ = np
+    sp_ = G['sp']; la_ = G['la']
+    irrep = G['irrep']; sm = G['sm']; DIRECTDIR = G['DIRECTDIR']
+    sl = tuple(sl)
+    p = DIRECTDIR / (hashlib.sha256(repr(sl).encode()).hexdigest() + '.npz')
+    if p.exists():
+        return np_.asarray(np_.load(p, allow_pickle=False)['V'], float)
+    reps = [irrep(*r) for r in sl]; dims = [R.dim for R in reps]
+    DD = int(np_.prod(dims)); k = sm(sl)
+    if k == 0:
+        V = np_.zeros((DD, 0)); np_.savez_compressed(p, V=V); return V
+    total_boxes = sum(R.boxes for R in reps)
+    if total_boxes % 3:
+        raise RuntimeError(('nonzero singlet with boxes', sl, total_boxes, k))
+    tw = total_boxes // 3
+    zcomb = []; zflat = []
+    for comb in itertools.product(*[range(d) for d in dims]):
+        w = [0, 0, 0]
+        for R, i in zip(reps, comb):
+            wi = R.weights[i]; w[0] += wi[0]; w[1] += wi[1]; w[2] += wi[2]
+        if w[0] == tw and w[1] == tw and w[2] == tw:
+            zcomb.append(comb); zflat.append(np_.ravel_multi_index(comb, dims))
+    nz = len(zcomb)
+    if nz == k:
+        Q = np_.eye(k)
+    else:
+        rows = []; cols = []; vals = []; rowmap = {}
+        for cj, comb in enumerate(zcomb):
+            for gg in (0, 1):
+                for leg, R in enumerate(reps):
+                    F = R.F1 if gg == 0 else R.F2
+                    col = F.getcol(comb[leg]).tocoo()
+                    for rr, val in zip(col.row, col.data):
+                        cc = list(comb); cc[leg] = int(rr)
+                        tag = (gg, tuple(cc)); ri = rowmap.setdefault(tag, len(rowmap))
+                        rows.append(ri); cols.append(cj); vals.append(float(val))
+        M = sp_.csr_matrix((vals, (rows, cols)), shape=(len(rowmap), nz))
+        Gram = (M.T @ M).tocsr()
+        if k >= nz:
+            Q = np_.eye(nz)[:, :k]
+        else:
+            vals0, vec = np_.linalg.eigh(Gram.toarray())
+            order = np_.argsort(vals0); vals0 = vals0[order]; vec = vec[:, order]
+            if vals0[k - 1] > 1e-8:
+                raise RuntimeError(('direct kernel residual eig', sl, vals0[:k + 1]))
+            Q0 = np_.asarray(vec[:, :k], float)
+            # Canonical gauge from the subspace projector using deterministic pivot rows.
+            _, _, piv = la_.qr(Q0.T, pivoting=True, mode='economic')
+            B = Q0 @ Q0[np_.asarray(piv[:k]), :].T
+            Q, _ = np_.linalg.qr(B)
+            for j in range(k):
+                ii = int(np_.argmax(np_.abs(Q[:, j])))
+                if Q[ii, j] < 0: Q[:, j] *= -1
+    V = np_.zeros((DD, k), float); V[np_.asarray(zflat, int), :] = Q
+    defect = float(np_.linalg.norm(V.T @ V - np_.eye(k)))
+    if defect > 1e-8:
+        raise RuntimeError(('direct ortho', sl, defect))
+    np_.savez_compressed(p, V=V, labels=np_.asarray(sl, np_.int16))
+    return V
+
+
+# ordered_basis() resolves direct_basis_sorted as a module global at call time,
+# so rebinding it here reaches every caller inside the reducer. lru_cache keeps
+# the .cache_clear() that emit_external's memory sweep calls on it.
+G['direct_basis_sorted'] = functools.lru_cache(maxsize=48)(_direct_basis_dense)
+
 
 def stage_emit():
     pth = OUT / 'crossing_component10.npz'

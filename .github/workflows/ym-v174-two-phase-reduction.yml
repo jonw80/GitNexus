@@ -494,8 +494,11 @@ jobs:
       - name: Collect this group's buckets from every emit shard
         uses: actions/download-artifact@v4
         with:
-          # One group only. The full bucket set is tens of GB and does not fit
-          # a runner; a group is roughly an eighth of that.
+          # One group only. Measured on a probe shard: 3.01 GiB of buckets per
+          # shard, so 48.1 GiB across sixteen and 6.01 GiB per group. A runner
+          # has ~82 GiB free, so the full set would in fact fit -- the split is
+          # for reduce wall time and for addressable per-group artifacts, not
+          # because one job could not hold it.
           pattern: v174-emit-g${{ matrix.group }}-s*
           merge-multiple: true
           path: ${{ runner.temp }}/v174-buckets/g${{ matrix.group }}

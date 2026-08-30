@@ -430,35 +430,260 @@ def _direct_basis_dense(sl):
 G['direct_basis_sorted'] = functools.lru_cache(maxsize=48)(_direct_basis_dense)
 
 
-def stage_emit():
+NB = 128
+NGROUPS = int(os.environ.get('V174_BUCKET_GROUPS', 8))
+BUCKETS = pathlib.Path(os.environ.get('V174_BUCKETS', str(OUT / 'buckets')))
+
+
+def _bucket_group(b):
+    return b * NGROUPS // NB
+
+
+def _seed_fixed_labels():
+    """Replay the crossing's FIXED_LABELS population before emitting.
+
+    reducer.crossing() marks every local tuple in the crossing shell as V135
+    fixed -- "Any local tuple appearing in the crossing shell is fixed V135
+    forever" -- and reducer.main() runs crossing, group_W_fibers and
+    emit_external in ONE process, so emit_external sees that set. The two-phase
+    split runs cross, merge and emit as separate processes, so emit starts with
+    only the 65 tuples seeded at import from low_states and every crossing
+    addition is lost. ordered_basis then routes those tuples to
+    direct_basis_sorted instead of fixed_basis_sorted.
+
+    That is not cosmetic. Over fibers [0,2000) it moves N_D from
+    46.368537904640223853 to 47.397551977753418165, a 2.2% shift -- an order of
+    magnitude larger than the 0.233% that separates the PSD floor from
+    Cauchy-Schwarz. It also made emit order-dependent: whether a tuple got the
+    fixed or the direct basis depended on whether some earlier fiber had already
+    registered it as a source, which made sharding over fiber ranges unsound.
+
+    After this replay FIXED_LABELS holds 364 tuples, exactly the set of source
+    tuples the fibers carry, so it cannot grow further during emit. That is what
+    makes emit order-independent and shard sums exact, and it leaves 1131
+    genuinely target-only tuples on the direct basis -- which is what the
+    reducer's own comment says direct is for.
+    """
+    t = time.time()
+    low_states = G['low_states']; branches = G['branches']; degree = G['degree']
+    valid_key = G['valid_key']; gvl = G['gvl']; slabels = G['slabels']
+    FIXED = G['FIXED_LABELS']; before = len(FIXED)
+    for key, _vb in low_states:
+        for pidx in range(24):
+            for ar in (1, -1):
+                for nk in branches(key, pidx, ar):
+                    dg = degree(nk)
+                    if dg < 10 or dg > 13 or not valid_key(nk):
+                        continue
+                    for labs in gvl(nk):
+                        FIXED.add(slabels(labs))
+    branches.cache_clear(); valid_key.cache_clear(); gc.collect()
+    print(f'FIXED_LABELS_SEEDED {before} -> {len(FIXED)} sec {time.time()-t:.1f}',
+          flush=True)
+    return FIXED
+
+
+def _load_fibers():
     pth = OUT / 'crossing_component10.npz'
-    print(f'EMIT_START {pth} exists={pth.exists()} size={pth.stat().st_size if pth.exists() else None}', flush=True)
+    print(f'EMIT_START {pth} exists={pth.exists()} '
+          f'size={pth.stat().st_size if pth.exists() else None}', flush=True)
     z = np.load(pth)
     K, W = z['states56'], z['W']
     print(f'EMIT_CROSSING keys={len(K)} W2={float(W @ W) if len(W) else 0.0}', flush=True)
-    try:
-        fibers, wnorm = group_W_fibers_surveyed(
+    fibers, wnorm = group_W_fibers_surveyed(
         G, K, W, strict=os.environ.get('V174_FIBER_SURVEY_ONLY') != '1')
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        print(f'::error::Emit group_W_fibers {type(e).__name__}: {e!r}', flush=True)
-        raise
     print('fiber norm', wnorm, 'n_fibers', len(fibers), flush=True)
-    emit = G['emit_external'](fibers, 128)
-    def _ser(o):
-        if isinstance(o, (np.integer,)):
-            return int(o)
-        if isinstance(o, (np.floating,)):
-            return float(o)
-        if isinstance(o, np.ndarray):
-            return o.tolist()
-        raise TypeError(type(o))
-    print(json.dumps(emit, indent=2, default=_ser), flush=True)
+    return fibers
 
 
-def stage_reduce():
-    ND, red = G['reduce_external'](128)
+def stage_prime():
+    """Precompute every direct_basis entry emit will need, once.
+
+    Each emit shard would otherwise rediscover and re-solve these itself, and
+    the tuples are spread across a long prefix of the fibers rather than
+    clustered, so the duplication is close to total. Enumerating the target
+    tuples costs only branch walking -- no branch_tensor, no records -- so this
+    is far cheaper than an emit pass, and the resulting cache is shipped to the
+    shards as an artifact.
+    """
+    _seed_fixed_labels()
+    FIXED = G['FIXED_LABELS']; gvl = G['gvl']; slabels = G['slabels']
+    branches = G['branches']; degree = G['degree']; valid_key = G['valid_key']
+    pl_aff = G['pl_aff']; direct = G['direct_basis_sorted']
+    fibers = _load_fibers()
+    t = time.time(); need = set(); n = 0
+    for ii, k48 in enumerate(fibers.keys(), 1):
+        a = list(k48); key = tuple((a[2 * i], a[2 * i + 1]) for i in range(24))
+        for pidx in range(24):
+            aff = pl_aff[pidx]
+            for ar in (1, -1):
+                for nk in branches(key, pidx, ar):
+                    dg = degree(nk)
+                    if dg < 10 or dg > 17 or not valid_key(nk):
+                        continue
+                    nv = gvl(nk)
+                    for v in aff:
+                        sl = slabels(nv[v])
+                        if sl not in FIXED:
+                            need.add(sl)
+        if ii % 20000 == 0:
+            print(f'PRIME scan {ii}/{len(fibers)} tuples {len(need)} '
+                  f'sec {time.time()-t:.0f}', flush=True)
+            branches.cache_clear(); valid_key.cache_clear(); gc.collect()
+    print(f'PRIME_TUPLES {len(need)} scan_sec {time.time()-t:.0f}', flush=True)
+    for j, sl in enumerate(sorted(need), 1):
+        direct(sl); n += 1
+        if j % 100 == 0:
+            print(f'PRIME solve {j}/{len(need)} sec {time.time()-t:.0f}', flush=True)
+            direct.cache_clear(); gc.collect()
+    print(f'PRIME_COMPLETE solved {n} sec {time.time()-t:.0f}', flush=True)
+
+
+def stage_emit(lo=None, hi=None, tag='x'):
+    """emit_external over fibers[lo:hi], into per-group, shard-tagged buckets.
+
+    accR/accW sharding worked because the crossing is a plain sum over sources.
+    Emit is a plain sum over fibers in the same way -- every record is written
+    to bucket crc32(coord) & 127, which depends only on the coordinate, so a
+    coordinate always lands in the same bucket no matter which shard produced
+    it. Concatenating bucket b across shards and then sorting reproduces the
+    unsharded bucket exactly. Verified: [0,2000) in one pass and as
+    [0,1000)+[1000,2000) give identical records, identical unique coordinates
+    and identical N_D to all 20 digits.
+
+    This only holds because _seed_fixed_labels() has frozen FIXED_LABELS first;
+    without it each shard would route a different set of tuples to the direct
+    basis and the sums would not agree.
+    """
+    _seed_fixed_labels()
+    fibers = _load_fibers()
+    items = list(fibers.items())
+    lo = 0 if lo is None else lo
+    hi = len(items) if hi is None else min(hi, len(items))
+    print(f'EMIT_RANGE tag={tag} [{lo},{hi}) of {len(items)}', flush=True)
+    kti = G['key_trans_info']; branches = G['branches']; degree = G['degree']
+    valid_key = G['valid_key']; bt = G['branch_tensor']
+    ckt = G['canonicalize_key_tensor']
+    for g in range(NGROUPS):
+        (BUCKETS / f'g{g}').mkdir(parents=True, exist_ok=True)
+    fps = [open(BUCKETS / f'g{_bucket_group(b)}' / f'b{b:03d}.s{tag}.bin', 'wb')
+           for b in range(NB)]
+    buf = [bytearray() for _ in range(NB)]
+    counts = [0] * NB
+    branch_n = trans_n = records = discard_low = 0
+    t = time.time()
+    try:
+        for ii, (k48, F) in enumerate(items[lo:hi], 1):
+            a = list(k48); key = tuple((a[2 * i], a[2 * i + 1]) for i in range(24))
+            _, nks, _, _, _ = kti(k48)
+            for pidx in range(24):
+                for ar in (1, -1):
+                    for nk in branches(key, pidx, ar):
+                        dg = degree(nk)
+                        if not valid_key(nk):
+                            continue
+                        if dg < 10:
+                            discard_low += 1; continue
+                        if dg > 17:
+                            raise RuntimeError(('degree>17', dg))
+                        branch_n += 1
+                        Z = bt(key, F, pidx, ar, nk)
+                        if not np.any(np.abs(Z) > 1e-15):
+                            continue
+                        ck, Zc, nkt = ckt(nk, Z)
+                        Zc = np.asarray(Zc) * math.sqrt(nks / nkt); trans_n += 1
+                        for ix in np.argwhere(np.abs(Zc) > 1e-15):
+                            vb = tuple(int(x) for x in ix); v = float(Zc[vb])
+                            rec = ck + bytes(vb) + G['struct'].pack('<d', v)
+                            b = G['zlib'].crc32(rec[:56]) & (NB - 1)
+                            buf[b].extend(rec); counts[b] += 1; records += 1
+                            if len(buf[b]) >= 1 << 20:
+                                fps[b].write(buf[b]); buf[b].clear()
+            if ii % 2000 == 0:
+                print(f'EMIT {ii}/{hi-lo} branches {branch_n} trans {trans_n} '
+                      f'records {records} discard_low {discard_low} '
+                      f'sec {time.time()-t:.0f}', flush=True)
+                G['local_matrix'].cache_clear(); G['direct_basis_sorted'].cache_clear()
+                G['fixed_basis_sorted'].cache_clear(); G['cg_maps'].cache_clear()
+                branches.cache_clear(); valid_key.cache_clear(); gc.collect()
+    finally:
+        for b in range(NB):
+            if buf[b]:
+                fps[b].write(buf[b]); buf[b].clear()
+            fps[b].close()
+    rep = {'shard': tag, 'lo': lo, 'hi': hi, 'branches_kept': branch_n,
+           'transitions': trans_n, 'records': records,
+           'projected_degree_lt10_branches': discard_low,
+           'records_per_bucket': counts, 'seconds_emit': time.time() - t}
+    (OUT / f'emit_report_{tag}.json').write_text(json.dumps(rep))
+    print(f'EMIT_DONE tag={tag} records {records} sec {time.time()-t:.0f}', flush=True)
+
+
+def stage_reduce_group(g):
+    """Reduce the buckets of one group, summing each coordinate across shards.
+
+    N_D = sum over buckets, over unique coordinates, of (sum of amplitudes)^2.
+    Buckets are disjoint by construction, so a group's contribution is
+    independent and the group partials add. The cross-shard sum has to happen
+    before the square, which is why shard files are concatenated per bucket
+    rather than each shard reducing its own.
+    """
+    dt = np.dtype([('key', 'S56'), ('val', '<f8')])
+    gdir = BUCKETS / f'g{g}'
+    ND = np.longdouble(0); recs = uniq = 0; aud = []
+    t = time.time()
+    for b in range(NB):
+        if _bucket_group(b) != g:
+            continue
+        parts = [np.fromfile(f, dtype=dt) for f in sorted(gdir.glob(f'b{b:03d}.s*.bin'))
+                 if f.stat().st_size]
+        for f in sorted(gdir.glob(f'b{b:03d}.s*.bin')):
+            if f.stat().st_size % 64:
+                raise RuntimeError(('bucket record size', f.name, f.stat().st_size))
+        if not parts:
+            continue
+        arr = np.concatenate(parts) if len(parts) > 1 else parts[0]
+        recs += len(arr)
+        o = np.argsort(arr['key'], kind='mergesort')
+        keys = arr['key'][o]; vals = arr['val'][o].astype(np.longdouble)
+        st = np.r_[0, np.flatnonzero(keys[1:] != keys[:-1]) + 1]
+        sums = np.add.reduceat(vals, st)
+        n2 = np.sum(sums * sums, dtype=np.longdouble)
+        ND += n2; uniq += len(st)
+        aud.append({'bucket': b, 'shards': len(parts), 'records': int(len(arr)),
+                    'unique_coordinates': int(len(st)), 'norm2': str(n2)})
+        print(f'REDUCE g{g} b{b} shards {len(parts)} records {len(arr)} '
+              f'unique {len(st)} ND {ND} sec {time.time()-t:.0f}', flush=True)
+        del arr, o, keys, vals, st, sums; gc.collect()
+    rep = {'group': g, 'ND_partial': str(ND), 'records': recs,
+           'unique_coordinates': uniq, 'buckets': aud,
+           'seconds_reduce': time.time() - t}
+    (OUT / f'reduce_partial_{g}.json').write_text(json.dumps(rep, indent=2))
+    print(f'REDUCE_GROUP_DONE g{g} ND_partial {ND} records {recs} unique {uniq}',
+          flush=True)
+
+
+def stage_combine():
+    """Sum the group partials and finish the reduction."""
+    parts = sorted(OUT.glob('reduce_partial_*.json'))
+    seen = {json.loads(p.read_text())['group'] for p in parts}
+    missing = sorted(set(range(NGROUPS)) - seen)
+    if missing:
+        raise RuntimeError(('reduce groups missing -- refusing to combine a partial '
+                            'reduction', missing, 'have', sorted(seen)))
+    ND = np.longdouble(0); recs = uniq = 0; aud = []
+    for p in parts:
+        r = json.loads(p.read_text())
+        ND += np.longdouble(r['ND_partial'])
+        recs += r['records']; uniq += r['unique_coordinates']
+        aud.append({'group': r['group'], 'ND_partial': r['ND_partial'],
+                    'records': r['records'], 'unique_coordinates': r['unique_coordinates']})
+    print(f'COMBINE groups {len(parts)} records {recs} unique {uniq} ND {ND}', flush=True)
+    _finish(float(ND), {'groups': aud, 'records_total': recs,
+                        'unique_coordinates': uniq})
+
+
+def _finish(ND, red):
     z = np.load(OUT / 'crossing_component10.npz')
     R = z['R']; Gm = float(R @ R)
     XLOG = -1228.86890836319450; LOGNORM = 2929.1760467826693
@@ -474,6 +699,14 @@ def stage_reduce():
     print(json.dumps(out, indent=2), flush=True)
 
 
+def stage_reduce():
+    """Single-job path: every group, then combine. CI runs the groups in
+    parallel instead, because the bucket data does not fit one runner."""
+    for g in range(NGROUPS):
+        stage_reduce_group(g)
+    stage_combine()
+
+
 if __name__ == '__main__':
     try:
         cmd = sys.argv[1]
@@ -482,7 +715,14 @@ if __name__ == '__main__':
             b = float(sys.argv[4]) if len(sys.argv) > 4 else 170.0
             stage_cross(lo, hi, b)
         elif cmd == 'merge': stage_merge()
-        elif cmd == 'emit': stage_emit()
+        elif cmd == 'prime': stage_prime()
+        elif cmd == 'emit':
+            lo = int(sys.argv[2]) if len(sys.argv) > 2 else None
+            hi = int(sys.argv[3]) if len(sys.argv) > 3 else None
+            tag = sys.argv[4] if len(sys.argv) > 4 else 'x'
+            stage_emit(lo, hi, tag)
+        elif cmd == 'reduce_group': stage_reduce_group(int(sys.argv[2]))
+        elif cmd == 'combine': stage_combine()
         elif cmd == 'reduce': stage_reduce()
         else:
             raise SystemExit(f'unknown cmd {cmd}')

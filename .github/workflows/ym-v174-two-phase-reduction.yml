@@ -23,6 +23,10 @@ name: YM V174 Two-Phase External Reduction
 on:
   workflow_dispatch:
     inputs:
+      emit_probe:
+        description: 'Measure one emit shard and stop (no reduce/combine)'
+        type: boolean
+        default: false
       run_phase2:
         description: 'Also run the reduction after building the inventory'
         type: boolean
@@ -40,6 +44,23 @@ env:
   N_D_FLOOR: '517.05823521403812592'
 
 jobs:
+  plan:
+    name: Choose the emit matrix
+    runs-on: ubuntu-latest
+    outputs:
+      shards: ${{ steps.pick.outputs.shards }}
+    steps:
+      - id: pick
+        run: |
+          # Probe mode runs a single shard so the artifact size and shard
+          # duration are measured rather than extrapolated, before committing
+          # sixteen shards' worth of Actions storage.
+          if [ "${{ inputs.emit_probe }}" = "true" ]; then
+            echo 'shards=[0]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'shards=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]' >> "$GITHUB_OUTPUT"
+          fi
+
   inventory:
     name: Phase 1 - build and pin the CG inventory
     runs-on: ubuntu-latest      # 16 GiB; the 9142x4824 solve needs ~8 GiB headroom
@@ -276,7 +297,7 @@ jobs:
 
   emit:
     name: Phase 2c - emit shard ${{ matrix.shard }}/16
-    needs: prime
+    needs: [prime, plan]
     runs-on: ubuntu-latest
     timeout-minutes: 350
     env:
@@ -290,7 +311,7 @@ jobs:
     strategy:
       fail-fast: false          # combine names a missing group rather than under-report
       matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+        shard: ${{ fromJSON(needs.plan.outputs.shards) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -352,6 +373,32 @@ jobs:
           python -u data_room/scripts/ym_v174_final/driver.py \
             emit_shard ${{ matrix.shard }} 16 2>&1 \
             | tee "$V174_OUT/emit_${{ matrix.shard }}.log"
+      - name: Measure this shard
+        env:
+          V174_OUT: ${{ runner.temp }}/v174-out
+          V174_BUCKETS: ${{ runner.temp }}/v174-buckets
+        run: |
+          set -euo pipefail
+          echo "=== per-group bytes ==="
+          for g in 0 1 2 3 4 5 6 7; do
+            printf 'g%s %s\n' "$g" "$(du -sb "$V174_BUCKETS/g$g" | cut -f1)"
+          done
+          TOT=$(du -sb "$V174_BUCKETS" | cut -f1)
+          echo "=== shard total bytes: $TOT ==="
+          df -h "$RUNNER_TEMP" | tail -1
+          python - <<'EOPY'
+          import json, os, pathlib
+          out = pathlib.Path(os.environ['V174_OUT'])
+          b = pathlib.Path(os.environ['V174_BUCKETS'])
+          tot = sum(f.stat().st_size for f in b.rglob('*.bin'))
+          rep = json.loads(next(out.glob('emit_report_*.json')).read_text())
+          n = 16
+          print(f"MEASURED shard bytes {tot} ({tot/2**30:.2f} GiB) "
+                f"records {rep['records']} seconds {rep['seconds_emit']:.0f}")
+          print(f"PROJECTED all {n} shards {tot*n/2**30:.1f} GiB, "
+                f"records {rep['records']*n:,}, "
+                f"one reduce group {tot*n/8/2**30:.2f} GiB")
+          EOPY
       - uses: actions/upload-artifact@v4
         with:
           name: v174-emit-g0-s${{ matrix.shard }}
@@ -396,6 +443,7 @@ jobs:
   reduce:
     name: Phase 2d - reduce bucket group ${{ matrix.group }}/8
     needs: emit
+    if: ${{ !inputs.emit_probe }}
     runs-on: ubuntu-latest
     timeout-minutes: 350
     env:
@@ -478,6 +526,7 @@ jobs:
   combine:
     name: Phase 2e - combine partials into N_D
     needs: reduce
+    if: ${{ !inputs.emit_probe }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:

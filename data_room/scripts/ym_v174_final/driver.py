@@ -177,6 +177,21 @@ def _select_shards():
         if selected[i][0] < selected[i-1][1]:
             raise RuntimeError(('refusing to merge overlapping shards',
                                 selected[i-1][2].name, selected[i][2].name))
+    # Non-overlap alone is not enough once shards arrive from independent
+    # parallel jobs: a job that dies leaves a GAP, and summing what remains
+    # silently produces a crossing that is short rather than wrong-looking.
+    # Require exact contiguous cover of [0, NLOW).
+    cursor = 0; gaps = []
+    for lo, hi, _f in selected:
+        if lo > cursor:
+            gaps.append((cursor, lo))
+        cursor = max(cursor, hi)
+    if cursor < NLOW:
+        gaps.append((cursor, NLOW))
+    if gaps:
+        raise RuntimeError(('shard coverage incomplete -- missing source ranges',
+                            gaps, 'have', [(l, h) for l, h, _ in selected]))
+    print(f'MERGE_COVERAGE_OK contiguous 0..{NLOW} from {len(selected)} shards', flush=True)
     return selected
 
 
@@ -215,6 +230,93 @@ def stage_merge():
     return rep
 
 
+
+def group_W_fibers_surveyed(G, K, W, strict=True):
+    """group_W_fibers, but it surveys every failure before deciding.
+
+    The upstream routine raises on the first offending state, so each CI run
+    reports exactly one bad state and nothing about how many others there are or
+    what they carry. These are integrity checks, so continuing past them silently
+    would produce a wrong N_D -- but failing on the first one costs a full run per
+    state. This walks everything, classifies each failure, records the squared
+    norm the offenders carry, and only then raises. One run yields the whole
+    picture; the excluded-norm fraction says whether the failures are numerical
+    dust or structural.
+    """
+    import math, time
+    t = time.time()
+    key_trans_info = G['key_trans_info']; orbit_size_bytes = G['orbit_size_bytes']
+    vm = G['vm']
+    fib = {}; coll = 0
+    bad = {'noncanonical': [], 'orbit_ratio': [], 'stab_orbit': [], 'fiber_too_large': []}
+    # np.zeros(vm(key)) allocates an 8-dimensional tensor sized by the key's
+    # irrep dimensions. A key with large labels asks for an astronomical array
+    # and the process is OOM-KILLED -- which emits no Python traceback at all,
+    # so wrapping the call in traceback.print_exc() reports nothing. Bound it.
+    max_cells = int(os.environ.get('V174_MAX_FIBER_CELLS', 1 << 22))
+    biggest = 0
+    bad_n2 = 0.0; good_n2 = 0.0
+    for row, x in zip(K, W):
+        if abs(x) < 1e-18:
+            continue
+        k48 = bytes(row[:48].tolist())
+        vb = tuple(int(v) for v in row[48:56])
+        key = tuple((row[2 * i].item(), row[2 * i + 1].item()) for i in range(24))
+        ck, nk, vmap, inv, stab = key_trans_info(k48)
+        if ck != k48:
+            bad['noncanonical'].append((k48.hex()[:32], float(x))); bad_n2 += float(x) ** 2
+            continue
+        raw = bytes(row.tolist()); ns = orbit_size_bytes(raw); m = ns / nk
+        if abs(m - round(m)) > 1e-12:
+            bad['orbit_ratio'].append((k48.hex()[:32], ns, nk, float(m), float(x)))
+            bad_n2 += float(x) ** 2
+            continue
+        orb = set()
+        for vm0 in stab:
+            nv = [0] * 8
+            for v, b in enumerate(vb):
+                nv[vm0[v]] = b
+            orb.add(tuple(nv))
+        if len(orb) != round(m):
+            bad['stab_orbit'].append((k48.hex()[:32], len(orb), round(m), len(stab), float(x)))
+            bad_n2 += float(x) ** 2
+            continue
+        F = fib.get(k48)
+        if F is None:
+            shape = vm(key)
+            cells = 1
+            for d in shape:
+                cells *= int(d)
+            biggest = max(biggest, cells)
+            if cells > max_cells:
+                bad['fiber_too_large'].append((k48.hex()[:32], tuple(int(d) for d in shape),
+                                               cells, float(x)))
+                bad_n2 += float(x) ** 2
+                continue
+            F = np.zeros(shape, float); fib[k48] = F
+        val = float(x) / math.sqrt(len(orb))
+        for qv in orb:
+            if abs(F[qv]) > 1e-13:
+                coll += 1
+            F[qv] += val
+        good_n2 += float(x) ** 2
+    n = float(sum(np.vdot(F, F).real for F in fib.values()))
+    nbad = sum(len(v) for v in bad.values())
+    print(f'FIBERS {len(fib)} norm2 {n} collisions {coll} '
+          f'largest_fiber_cells {biggest} sec {time.time()-t:.1f}', flush=True)
+    if nbad:
+        total = good_n2 + bad_n2
+        print('FIBER_SURVEY  offending states by class:', flush=True)
+        for cls, items in bad.items():
+            if items:
+                print(f'  {cls}: {len(items)}   examples: {items[:3]}', flush=True)
+        print(f'  excluded squared norm {bad_n2:.6e} of {total:.6e} '
+              f'({100.0*bad_n2/total if total else 0:.4f}%)', flush=True)
+        if strict:
+            raise RuntimeError(('fiber integrity failures', {k: len(v) for k, v in bad.items()},
+                                'excluded_norm2', bad_n2))
+    return fib, n
+
 def stage_emit():
     pth = OUT / 'crossing_component10.npz'
     print(f'EMIT_START {pth} exists={pth.exists()} size={pth.stat().st_size if pth.exists() else None}', flush=True)
@@ -222,7 +324,8 @@ def stage_emit():
     K, W = z['states56'], z['W']
     print(f'EMIT_CROSSING keys={len(K)} W2={float(W @ W) if len(W) else 0.0}', flush=True)
     try:
-        fibers, wnorm = G['group_W_fibers'](K, W)
+        fibers, wnorm = group_W_fibers_surveyed(
+        G, K, W, strict=os.environ.get('V174_FIBER_SURVEY_ONLY') != '1')
     except Exception as e:
         import traceback
         traceback.print_exc()

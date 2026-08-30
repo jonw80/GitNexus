@@ -397,9 +397,12 @@ def _direct_basis_dense(sl):
                 pass
             if vals0 is None:
                 # ARPACK did not separate the k-fold degenerate kernel from the
-                # next eigenvalue (1.0). Dense is exact here, and the tuples that
-                # trip this are small -- the nz~600 cases cost ~0.02s dense, while
-                # ARPACK's advantage is on the large nz where it does converge.
+                # next eigenvalue (1.0). Dense is exact here. Measured over the
+                # full tuple set: 14 of 1423 tuples need this, at nz = 399, 399,
+                # 624, 714, 948, 1146, 1164, 1242, 1500, 1674, 2004, 2598, 3666,
+                # 4590 -- so failure is NOT a function of size, and the fallback
+                # is rare enough that the dense cost is bounded while every other
+                # tuple keeps the pinned reducer's own basis.
                 w, u = np_.linalg.eigh(Gram.toarray())
                 o = np_.argsort(w); vals0 = w[o]; vec = u[:, o]
                 print(f'DIRECT_BASIS_DENSE_FALLBACK nz={nz} k={k} {sl}', flush=True)

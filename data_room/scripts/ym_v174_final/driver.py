@@ -381,8 +381,28 @@ def _direct_basis_dense(sl):
         if k >= nz:
             Q = np_.eye(nz)[:, :k]
         else:
-            vals0, vec = np_.linalg.eigh(Gram.toarray())
-            order = np_.argsort(vals0); vals0 = vals0[order]; vec = vec[:, order]
+            # Try the reducer's own solver first, unchanged, so that every tuple
+            # ARPACK can handle keeps the pinned reducer's exact basis and this
+            # override is a no-op there. Only fall back where it actually fails.
+            nev = min(nz - 1, k + 1)
+            v0 = np_.linspace(1.0, 2.0, nz); v0 /= np_.linalg.norm(v0)
+            vals0 = vec = None
+            try:
+                w, u = G['spla'].eigsh(Gram, k=nev, which='SM', tol=1e-11,
+                                       maxiter=20000, v0=v0)
+                o = np_.argsort(w)
+                if w[o][k - 1] <= 1e-8:
+                    vals0 = w[o]; vec = u[:, o]
+            except Exception:
+                pass
+            if vals0 is None:
+                # ARPACK did not separate the k-fold degenerate kernel from the
+                # next eigenvalue (1.0). Dense is exact here, and the tuples that
+                # trip this are small -- the nz~600 cases cost ~0.02s dense, while
+                # ARPACK's advantage is on the large nz where it does converge.
+                w, u = np_.linalg.eigh(Gram.toarray())
+                o = np_.argsort(w); vals0 = w[o]; vec = u[:, o]
+                print(f'DIRECT_BASIS_DENSE_FALLBACK nz={nz} k={k} {sl}', flush=True)
             if vals0[k - 1] > 1e-8:
                 raise RuntimeError(('direct kernel residual eig', sl, vals0[:k + 1]))
             Q0 = np_.asarray(vec[:, :k], float)

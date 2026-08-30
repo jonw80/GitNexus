@@ -539,7 +539,7 @@ def stage_prime():
     print(f'PRIME_COMPLETE solved {n} sec {time.time()-t:.0f}', flush=True)
 
 
-def stage_emit(lo=None, hi=None, tag='x'):
+def stage_emit(lo=None, hi=None, tag='x', shard=None):
     """emit_external over fibers[lo:hi], into per-group, shard-tagged buckets.
 
     accR/accW sharding worked because the crossing is a plain sum over sources.
@@ -558,6 +558,13 @@ def stage_emit(lo=None, hi=None, tag='x'):
     _seed_fixed_labels()
     fibers = _load_fibers()
     items = list(fibers.items())
+    if shard is not None:
+        # Range by shard index, so the workflow never has to hardcode the fiber
+        # count -- it follows the crossing, and a stale literal would silently
+        # drop fibers off the end.
+        i, n = shard
+        lo = len(items) * i // n
+        hi = len(items) * (i + 1) // n
     lo = 0 if lo is None else lo
     hi = len(items) if hi is None else min(hi, len(items))
     print(f'EMIT_RANGE tag={tag} [{lo},{hi}) of {len(items)}', flush=True)
@@ -721,6 +728,9 @@ if __name__ == '__main__':
             hi = int(sys.argv[3]) if len(sys.argv) > 3 else None
             tag = sys.argv[4] if len(sys.argv) > 4 else 'x'
             stage_emit(lo, hi, tag)
+        elif cmd == 'emit_shard':
+            i = int(sys.argv[2]); n = int(sys.argv[3])
+            stage_emit(tag=str(i), shard=(i, n))
         elif cmd == 'reduce_group': stage_reduce_group(int(sys.argv[2]))
         elif cmd == 'combine': stage_combine()
         elif cmd == 'reduce': stage_reduce()

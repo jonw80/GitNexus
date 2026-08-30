@@ -189,8 +189,8 @@ jobs:
           path: ${{ runner.temp }}/v174-shards
           retention-days: 90
 
-  reduce:
-    name: Phase 2b - merge, emit, reduce to N_D
+  prime:
+    name: Phase 2b - merge the crossing and pre-solve direct_basis
     needs: cross
     if: ${{ inputs.run_phase2 }}
     runs-on: ubuntu-latest
@@ -216,12 +216,12 @@ jobs:
       - name: Decode reducer
         shell: bash
         run: |
-          python - <<'PY'
+          python - <<'EOPY'
           import base64, lzma, pathlib, os
           b = pathlib.Path('data_room/scripts/ym_v174_final/run_external_norm.py.xz.b64').read_text()
-          out = pathlib.Path(os.environ['RUNNER_TEMP']) / 'run_external_norm.py'
-          out.write_bytes(lzma.decompress(base64.b64decode(b)))
-          PY
+          (pathlib.Path(os.environ['RUNNER_TEMP']) / 'run_external_norm.py').write_bytes(
+              lzma.decompress(base64.b64decode(b)))
+          EOPY
       - uses: actions/download-artifact@v4
         with:
           name: v174-cg-inventory
@@ -242,34 +242,317 @@ jobs:
           pattern: v174-cross-shard-*
           merge-multiple: true
           path: ${{ runner.temp }}/v174-shards
-      - name: Show what the shards cover
-        run: ls -la "${{ runner.temp }}/v174-shards"
-      - name: Reduce to N_D
+      - name: Merge, then pre-solve every direct_basis entry emit needs
         env:
           V174_INPUT: ${{ runner.temp }}/v174-v3/extract
           V174_OUT: ${{ runner.temp }}/v174-out
           V174_CACHE: ${{ runner.temp }}/v174-cache
           V174_REDUCER: ${{ runner.temp }}/run_external_norm.py
           V174_SHARDS: ${{ runner.temp }}/v174-shards
+          V174_BUCKETS: ${{ runner.temp }}/v174-buckets
         run: |
           set -euo pipefail
           mkdir -p "$V174_OUT" "$V174_SHARDS"
           D=data_room/scripts/ym_v174_final/driver.py
-          # The crossing already ran, in parallel, in Phase 2a. merge requires an
-          # exact contiguous cover of [0, NLOW) before it will proceed.
           python -u "$D" merge 2>&1 | tee -a "$V174_OUT/driver.log"
-          python -u "$D" emit  2>&1 | tee -a "$V174_OUT/driver.log"
-          python -u "$D" reduce 2>&1 | tee -a "$V174_OUT/driver.log"
+          # Solve direct_basis once here rather than in each of the 16 emit
+          # shards: the tuples are spread across a long prefix of the fibers,
+          # so every shard would otherwise rediscover almost all of them.
+          python -u "$D" prime 2>&1 | tee -a "$V174_OUT/driver.log"
+          tar czf "$RUNNER_TEMP/direct_basis.tar.gz" -C "$V174_CACHE" direct_basis
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v174-crossing
+          path: |
+            ${{ runner.temp }}/v174-out/crossing_component10.npz
+            ${{ runner.temp }}/v174-out/merge_report.json
+            ${{ runner.temp }}/v174-out/phase.npy
+          retention-days: 90
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v174-direct-basis
+          path: ${{ runner.temp }}/direct_basis.tar.gz
+          retention-days: 90
+
+  emit:
+    name: Phase 2c - emit shard ${{ matrix.shard }}/16
+    needs: prime
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      # Determinism: BLAS thread count changes floating-point summation order,
+      # and this reduction has to be reproducible from the pinned inventory.
+      OMP_NUM_THREADS: '1'
+      OPENBLAS_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+      NUMEXPR_NUM_THREADS: '1'
+      PYTHONUNBUFFERED: '1'
+    strategy:
+      fail-fast: false          # combine names a missing group rather than under-report
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned numerical dependencies
+        run: python -m pip install --disable-pip-version-check "numpy==${PIN_NUMPY}" "scipy==${PIN_SCIPY}" opt_einsum
+      - name: Reconstruct and repair input_v3
+        shell: bash
+        run: bash data_room/scripts/ym_v174_final/reassemble_input_v3.sh
+      - name: Decode reducer
+        shell: bash
+        run: |
+          python - <<'EOPY'
+          import base64, lzma, pathlib, os
+          b = pathlib.Path('data_room/scripts/ym_v174_final/run_external_norm.py.xz.b64').read_text()
+          (pathlib.Path(os.environ['RUNNER_TEMP']) / 'run_external_norm.py').write_bytes(
+              lzma.decompress(base64.b64decode(b)))
+          EOPY
+      - uses: actions/download-artifact@v4
+        with:
+          name: v174-cg-inventory
+          path: ${{ runner.temp }}/inv
+      - name: Restore and verify the pinned inventory
+        env:
+          V174_CACHE: ${{ runner.temp }}/v174-cache
+        run: |
+          mkdir -p "$RUNNER_TEMP/v174-out"
+          tar xzf "$RUNNER_TEMP/inv/cg_inventory.tar.gz" -C "$RUNNER_TEMP"
+          python data_room/scripts/ym_v174_final/build_cg_inventory.py \
+            --verify "$RUNNER_TEMP/inv/cg_inventory_manifest.json"
+          cp "$RUNNER_TEMP/inv/phase.npy" "$RUNNER_TEMP/v174-out/phase.npy"
+          cp "$RUNNER_TEMP/inv/logc.npy" "$RUNNER_TEMP/v174-out/logc.npy" || true
+      - uses: actions/download-artifact@v4
+        with:
+          name: v174-crossing
+          path: ${{ runner.temp }}/v174-out
+      - uses: actions/download-artifact@v4
+        with:
+          name: v174-direct-basis
+          path: ${{ runner.temp }}/db
+      - name: Restore the pre-solved direct_basis cache
+        env:
+          V174_CACHE: ${{ runner.temp }}/v174-cache
+        run: tar xzf "$RUNNER_TEMP/db/direct_basis.tar.gz" -C "$V174_CACHE"
+      - name: Emit this fiber range
+        env:
+          V174_INPUT: ${{ runner.temp }}/v174-v3/extract
+          V174_OUT: ${{ runner.temp }}/v174-out
+          V174_CACHE: ${{ runner.temp }}/v174-cache
+          V174_REDUCER: ${{ runner.temp }}/run_external_norm.py
+          V174_SHARDS: ${{ runner.temp }}/v174-shards
+          V174_BUCKETS: ${{ runner.temp }}/v174-buckets
+        run: |
+          set -euo pipefail
+          mkdir -p "$V174_OUT" "$V174_SHARDS" "$V174_BUCKETS"
+          # Ranged by shard index: the driver derives the bounds from the fiber
+          # count it actually loaded, so the split follows the crossing.
+          python -u data_room/scripts/ym_v174_final/driver.py \
+            emit_shard ${{ matrix.shard }} 16 2>&1 \
+            | tee "$V174_OUT/emit_${{ matrix.shard }}.log"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v174-emit-g0-s${{ matrix.shard }}
+          path: ${{ runner.temp }}/v174-buckets/g0
+          retention-days: 3
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v174-emit-g1-s${{ matrix.shard }}
+          path: ${{ runner.temp }}/v174-buckets/g1
+          retention-days: 3
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v174-emit-g2-s${{ matrix.shard }}
+          path: ${{ runner.temp }}/v174-buckets/g2
+          retention-days: 3
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v174-emit-g3-s${{ matrix.shard }}
+          path: ${{ runner.temp }}/v174-buckets/g3
+          retention-days: 3
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v174-emit-g4-s${{ matrix.shard }}
+          path: ${{ runner.temp }}/v174-buckets/g4
+          retention-days: 3
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v174-emit-g5-s${{ matrix.shard }}
+          path: ${{ runner.temp }}/v174-buckets/g5
+          retention-days: 3
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v174-emit-g6-s${{ matrix.shard }}
+          path: ${{ runner.temp }}/v174-buckets/g6
+          retention-days: 3
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v174-emit-g7-s${{ matrix.shard }}
+          path: ${{ runner.temp }}/v174-buckets/g7
+          retention-days: 3
+
+  reduce:
+    name: Phase 2d - reduce bucket group ${{ matrix.group }}/8
+    needs: emit
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      # Determinism: BLAS thread count changes floating-point summation order,
+      # and this reduction has to be reproducible from the pinned inventory.
+      OMP_NUM_THREADS: '1'
+      OPENBLAS_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+      NUMEXPR_NUM_THREADS: '1'
+      PYTHONUNBUFFERED: '1'
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned numerical dependencies
+        run: python -m pip install --disable-pip-version-check "numpy==${PIN_NUMPY}" "scipy==${PIN_SCIPY}" opt_einsum
+      - name: Reconstruct and repair input_v3
+        shell: bash
+        run: bash data_room/scripts/ym_v174_final/reassemble_input_v3.sh
+      - name: Decode reducer
+        shell: bash
+        run: |
+          python - <<'EOPY'
+          import base64, lzma, pathlib, os
+          b = pathlib.Path('data_room/scripts/ym_v174_final/run_external_norm.py.xz.b64').read_text()
+          (pathlib.Path(os.environ['RUNNER_TEMP']) / 'run_external_norm.py').write_bytes(
+              lzma.decompress(base64.b64decode(b)))
+          EOPY
+      - uses: actions/download-artifact@v4
+        with:
+          name: v174-cg-inventory
+          path: ${{ runner.temp }}/inv
+      - name: Restore and verify the pinned inventory
+        env:
+          V174_CACHE: ${{ runner.temp }}/v174-cache
+        run: |
+          mkdir -p "$RUNNER_TEMP/v174-out"
+          tar xzf "$RUNNER_TEMP/inv/cg_inventory.tar.gz" -C "$RUNNER_TEMP"
+          python data_room/scripts/ym_v174_final/build_cg_inventory.py \
+            --verify "$RUNNER_TEMP/inv/cg_inventory_manifest.json"
+          cp "$RUNNER_TEMP/inv/phase.npy" "$RUNNER_TEMP/v174-out/phase.npy"
+          cp "$RUNNER_TEMP/inv/logc.npy" "$RUNNER_TEMP/v174-out/logc.npy" || true
+      - name: Collect this group's buckets from every emit shard
+        uses: actions/download-artifact@v4
+        with:
+          # One group only. The full bucket set is tens of GB and does not fit
+          # a runner; a group is roughly an eighth of that.
+          pattern: v174-emit-g${{ matrix.group }}-s*
+          merge-multiple: true
+          path: ${{ runner.temp }}/v174-buckets/g${{ matrix.group }}
+      - name: Reduce the group
+        env:
+          V174_INPUT: ${{ runner.temp }}/v174-v3/extract
+          V174_OUT: ${{ runner.temp }}/v174-out
+          V174_CACHE: ${{ runner.temp }}/v174-cache
+          V174_REDUCER: ${{ runner.temp }}/run_external_norm.py
+          V174_SHARDS: ${{ runner.temp }}/v174-shards
+          V174_BUCKETS: ${{ runner.temp }}/v174-buckets
+        run: |
+          set -euo pipefail
+          mkdir -p "$V174_OUT"
+          df -h "$RUNNER_TEMP" | tail -1
+          du -sh "$V174_BUCKETS/g${{ matrix.group }}"
+          python -u data_room/scripts/ym_v174_final/driver.py \
+            reduce_group ${{ matrix.group }} 2>&1 \
+            | tee "$V174_OUT/reduce_g${{ matrix.group }}.log"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v174-reduce-partial-${{ matrix.group }}
+          path: |
+            ${{ runner.temp }}/v174-out/reduce_partial_${{ matrix.group }}.json
+            ${{ runner.temp }}/v174-out/reduce_g${{ matrix.group }}.log
+          retention-days: 90
+
+  combine:
+    name: Phase 2e - combine partials into N_D
+    needs: reduce
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      # Determinism: BLAS thread count changes floating-point summation order,
+      # and this reduction has to be reproducible from the pinned inventory.
+      OMP_NUM_THREADS: '1'
+      OPENBLAS_NUM_THREADS: '1'
+      MKL_NUM_THREADS: '1'
+      NUMEXPR_NUM_THREADS: '1'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned numerical dependencies
+        run: python -m pip install --disable-pip-version-check "numpy==${PIN_NUMPY}" "scipy==${PIN_SCIPY}" opt_einsum
+      - name: Reconstruct and repair input_v3
+        shell: bash
+        run: bash data_room/scripts/ym_v174_final/reassemble_input_v3.sh
+      - name: Decode reducer
+        shell: bash
+        run: |
+          python - <<'EOPY'
+          import base64, lzma, pathlib, os
+          b = pathlib.Path('data_room/scripts/ym_v174_final/run_external_norm.py.xz.b64').read_text()
+          (pathlib.Path(os.environ['RUNNER_TEMP']) / 'run_external_norm.py').write_bytes(
+              lzma.decompress(base64.b64decode(b)))
+          EOPY
+      - uses: actions/download-artifact@v4
+        with:
+          name: v174-cg-inventory
+          path: ${{ runner.temp }}/inv
+      - name: Restore and verify the pinned inventory
+        env:
+          V174_CACHE: ${{ runner.temp }}/v174-cache
+        run: |
+          mkdir -p "$RUNNER_TEMP/v174-out"
+          tar xzf "$RUNNER_TEMP/inv/cg_inventory.tar.gz" -C "$RUNNER_TEMP"
+          python data_room/scripts/ym_v174_final/build_cg_inventory.py \
+            --verify "$RUNNER_TEMP/inv/cg_inventory_manifest.json"
+          cp "$RUNNER_TEMP/inv/phase.npy" "$RUNNER_TEMP/v174-out/phase.npy"
+          cp "$RUNNER_TEMP/inv/logc.npy" "$RUNNER_TEMP/v174-out/logc.npy" || true
+      - uses: actions/download-artifact@v4
+        with:
+          name: v174-crossing
+          path: ${{ runner.temp }}/v174-out
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: v174-reduce-partial-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/v174-out
+      - name: Combine
+        env:
+          V174_INPUT: ${{ runner.temp }}/v174-v3/extract
+          V174_OUT: ${{ runner.temp }}/v174-out
+          V174_CACHE: ${{ runner.temp }}/v174-cache
+          V174_REDUCER: ${{ runner.temp }}/run_external_norm.py
+          V174_SHARDS: ${{ runner.temp }}/v174-shards
+          V174_BUCKETS: ${{ runner.temp }}/v174-buckets
+        run: |
+          set -euo pipefail
+          ls -la "$V174_OUT"
+          python -u data_room/scripts/ym_v174_final/driver.py combine 2>&1 \
+            | tee -a "$V174_OUT/driver.log"
       - name: Enforce the pre-registered floor
         env:
           V174_OUT: ${{ runner.temp }}/v174-out
         run: |
-          python - <<'PY'
+          python - <<'EOPY'
           import json, os, pathlib, sys
           p = pathlib.Path(os.environ['V174_OUT']) / 'a10_B10_component10.json'
           r = json.loads(p.read_text())
           floor = float(os.environ['N_D_FLOOR'])
-          print(json.dumps(r, indent=2))
+          print(json.dumps({k: v for k, v in r.items() if k != 'reduce'}, indent=2))
           fail = []
           if r['N_D'] < floor:
               fail.append(f"N_D {r['N_D']!r} below the forced floor {floor!r}")
@@ -278,7 +561,7 @@ jobs:
           if fail:
               print('FAILED:'); [print(' -', f) for f in fail]; sys.exit(1)
           print('N_D clears the floor and B*B is PSD.')
-          PY
+          EOPY
       - uses: actions/upload-artifact@v4
         if: always()
         with:

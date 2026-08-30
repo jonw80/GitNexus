@@ -451,12 +451,27 @@ def _seed_fixed_labels():
     addition is lost. ordered_basis then routes those tuples to
     direct_basis_sorted instead of fixed_basis_sorted.
 
-    That is not cosmetic. Over fibers [0,2000) it moves N_D from
-    46.368537904640223853 to 47.397551977753418165, a 2.2% shift -- an order of
+    That is not cosmetic: over fibers [0,2000) it moves N_D from
+    46.368537904640223853 to 47.397551977753418165, a 2.2% shift, an order of
     magnitude larger than the 0.233% that separates the PSD floor from
-    Cauchy-Schwarz. It also made emit order-dependent: whether a tuple got the
-    fixed or the direct basis depended on whether some earlier fiber had already
-    registered it as a source, which made sharding over fiber ranges unsound.
+    Cauchy-Schwarz.
+
+    The shift is corruption, not a change of basis. fixed_basis_sorted and
+    direct_basis_sorted were checked over all 292 tuples reachable both ways:
+    same dimension, both Gram matrices the identity to 1e-8, and every overlap
+    singular value 1.0, up to k=22. They are orthogonally related, so N_D is
+    invariant under choosing either -- confirmed directly by emitting fibers
+    [0,1000) twice under two frozen choices, targets-fixed and targets-direct,
+    which give 3211762 and 3338548 records (the direct basis is denser) but
+    N_D 25.391894247661282578 and 25.39189424766128226, equal to 3e-19.
+
+    What actually breaks is that without seeding there is no consistent choice
+    to be invariant under. ordered_basis caches the fixed-vs-direct decision in
+    an lru_cache(maxsize=128) that nothing ever clears, while FIXED_LABELS
+    mutates underneath it as force_fixed registers source tuples. On eviction
+    the same tuple is recomputed against a larger FIXED_LABELS and flips basis
+    mid-run, so contributions to one coordinate are summed across two different
+    bases. Correctness then depends on an LRU capacity.
 
     After this replay FIXED_LABELS holds 364 tuples, exactly the set of source
     tuples the fibers carry, so it cannot grow further during emit. That is what
@@ -481,6 +496,24 @@ def _seed_fixed_labels():
     print(f'FIXED_LABELS_SEEDED {before} -> {len(FIXED)} sec {time.time()-t:.1f}',
           flush=True)
     return FIXED
+
+
+def _assert_fixed_labels_frozen(n):
+    """FIXED_LABELS must not move once emit starts.
+
+    Every source tuple emit meets is a crossing-shell tuple, so _seed_fixed_labels
+    already holds all of them and force_fixed cannot add anything new. That is
+    what makes eviction from ordered_basis's LRU harmless and shard sums exact.
+    It is an invariant the whole design rests on, so check it rather than trust
+    it: if it ever grows, a tuple flipped basis mid-run and the reduction is
+    back to depending on cache capacity and fiber order.
+    """
+    m = len(G['FIXED_LABELS'])
+    if m != n:
+        raise RuntimeError(('FIXED_LABELS grew during emit -- basis choice is no '
+                            'longer frozen, so coordinates may mix two bases',
+                            'seeded', n, 'now', m))
+    print(f'FIXED_LABELS_FROZEN {m}', flush=True)
 
 
 def _load_fibers():
@@ -555,7 +588,7 @@ def stage_emit(lo=None, hi=None, tag='x', shard=None):
     without it each shard would route a different set of tuples to the direct
     basis and the sums would not agree.
     """
-    _seed_fixed_labels()
+    _nfixed = len(_seed_fixed_labels())
     fibers = _load_fibers()
     items = list(fibers.items())
     if shard is not None:
@@ -618,6 +651,7 @@ def stage_emit(lo=None, hi=None, tag='x', shard=None):
             if buf[b]:
                 fps[b].write(buf[b]); buf[b].clear()
             fps[b].close()
+    _assert_fixed_labels_frozen(_nfixed)
     rep = {'shard': tag, 'lo': lo, 'hi': hi, 'branches_kept': branch_n,
            'transitions': trans_n, 'records': records,
            'projected_degree_lt10_branches': discard_low,

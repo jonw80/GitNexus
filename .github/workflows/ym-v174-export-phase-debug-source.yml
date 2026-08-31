@@ -1,0 +1,27 @@
+name: YM V174 Export Phase Debug Source
+on:
+  push:
+    branches:
+      - chatgpt/ym-v174-phase-rootcause-20260831
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode reducer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p export
+          base64 --decode data_room/scripts/ym_v174_final/run_external_norm.py.xz.b64 | xz --decompress --stdout > export/run_external_norm.py
+          cp data_room/scripts/ym_v174_final/driver.py export/
+          cp data_room/scripts/ym_v174_final/build_cg_inventory.py export/
+          sha256sum export/* > export/SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v174-phase-debug-source
+          path: export/
+          if-no-files-found: error

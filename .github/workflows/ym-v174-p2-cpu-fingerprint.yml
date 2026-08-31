@@ -1,0 +1,89 @@
+name: YM V174 P2 CPU Fingerprint
+on:
+  push:
+    branches:
+      - chatgpt/ym-v174-phase-rootcause-20260831
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  fingerprint:
+    strategy:
+      fail-fast: false
+      matrix:
+        slot: [0,1,2,3]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install stack
+        run: python -m pip install --disable-pip-version-check numpy==2.3.5 scipy==1.17.0 opt_einsum==3.4.0
+      - name: Reconstruct input and reducer
+        shell: bash
+        run: |
+          set -euo pipefail
+          W="$RUNNER_TEMP/p2cpu"; mkdir -p "$W/extract" "$W/out" "$W/cache"
+          python - <<'PY'
+          import json,hashlib,pathlib,base64,os
+          root=pathlib.Path('data_room/primary/ym_v174_final/input_v3'); m=json.loads((root/'manifest.json').read_text())
+          alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+          repaired=[]
+          for ent in m['parts']:
+              s=(root/ent['name']).read_text().strip(); got=hashlib.sha256(s.encode()).hexdigest()
+              if len(s)==ent['chars'] and got==ent['sha256']: rs=s
+              elif len(s)==ent['chars']-1:
+                  rs=None
+                  for pos in range(len(s)+1):
+                      for ch in alphabet:
+                          cand=s[:pos]+ch+s[pos:]
+                          if hashlib.sha256(cand.encode()).hexdigest()==ent['sha256']: rs=cand; break
+                      if rs is not None: break
+                  if rs is None: raise RuntimeError(ent['name'])
+              else: raise RuntimeError(ent['name'])
+              repaired.append(rs)
+          raw=base64.b64decode(''.join(repaired),validate=True)
+          assert len(raw)==74708 and hashlib.sha256(raw).hexdigest()=='b61862df391281c9920569215c8757d6e7b6e204aaa9936dd8fe189bbe43af1a'
+          (pathlib.Path(os.environ['RUNNER_TEMP'])/'p2cpu'/'input.tar.xz').write_bytes(raw)
+          PY
+          tar -xJf "$W/input.tar.xz" -C "$W/extract"
+          git show 0d81eccf2d1123a69ac75fb2cf0e9d87eefea09a:data_room/scripts/ym_v174_final/run_external_norm.py.xz.b64 | tr -d '\r\n' | base64 --decode | xz --decompress --stdout > "$W/reducer.py"
+      - name: CPU and P2 fingerprint
+        shell: bash
+        env:
+          OMP_NUM_THREADS: '1'
+          OPENBLAS_NUM_THREADS: '1'
+          MKL_NUM_THREADS: '1'
+          PYTHONHASHSEED: '0'
+          PYTHONUNBUFFERED: '1'
+        run: |
+          set -euo pipefail
+          export V174_INPUT="$RUNNER_TEMP/p2cpu/extract"
+          export V174_OUT="$RUNNER_TEMP/p2cpu/out"
+          export V174_CACHE="$RUNNER_TEMP/p2cpu/cache"
+          export RED="$RUNNER_TEMP/p2cpu/reducer.py"
+          { echo '=== LSCpu ==='; lscpu; echo '=== cpuinfo model ==='; grep -m1 -E 'vendor_id|model name|flags' /proc/cpuinfo; } | tee "$V174_OUT/cpu.txt"
+          python - <<'PY' 2>&1 | tee "$V174_OUT/p2.log"
+          import os,sys,hashlib,importlib.util,pathlib,numpy as np,scipy,scipy.sparse as sp,inspect
+          print('PY',sys.version); print('NUMPY',np.__version__,'SCIPY',scipy.__version__); np.show_config()
+          spec=importlib.util.spec_from_file_location('ren',os.environ['RED']); ren=importlib.util.module_from_spec(spec); spec.loader.exec_module(ren)
+          for name in ['transition_choices','get_inv','get_action_cg']:
+              f=getattr(ren,name,None)
+              if f is not None:
+                  print('--- SOURCE',name,'---'); print(inspect.getsource(f))
+          C,out=ren.low_raw_C(); C=C.tocsr();
+          h=hashlib.sha256(); h.update(C.indptr.tobytes()); h.update(C.indices.tobytes()); h.update(C.data.tobytes()); ch=h.hexdigest()
+          s,ncc,contr,eigres,logc=ren.recover_phase(C); M=(ren.A*(C@sp.diags(s.astype(float)))+sp.diags(logc)).tocsr(); D=(M-M.T).tocoo(); sym=float(np.abs(D.data).max()) if D.nnz else 0.0
+          print('FINGERPRINT',{'nnz':int(C.nnz),'C_sha256':ch,'outside':int(out),'ncc':int(ncc),'contr':int(contr),'eigres':float(eigres),'sym':sym})
+          sp.save_npz(pathlib.Path(os.environ['V174_OUT'])/'C.npz',C)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v174-p2-cpu-fingerprint-${{ matrix.slot }}
+          path: ${{ runner.temp }}/p2cpu/out/
+          if-no-files-found: error

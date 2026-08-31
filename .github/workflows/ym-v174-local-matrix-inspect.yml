@@ -14,27 +14,23 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Decode reducer and print numerical kernels
+      - name: Decode reducer and print fixed-basis kernels
         shell: bash
         run: |
           set -euo pipefail
           RED="$RUNNER_TEMP/reducer.py"
           git show 0d81eccf2d1123a69ac75fb2cf0e9d87eefea09a:data_room/scripts/ym_v174_final/run_external_norm.py.xz.b64 \
             | tr -d '\r\n' | base64 --decode | xz --decompress --stdout > "$RED"
-          sha256sum "$RED"
           python - "$RED" <<'PY'
           import ast,sys
-          p=sys.argv[1]; src=open(p).read(); lines=src.splitlines(); tree=ast.parse(src)
-          wanted={'robust_null_space','ordered_basis','local_matrix','cg_maps','inv_tensor_fixed','get_inv','get_action_cg','null_basis','transition_choices','low_raw_C','recover_phase','canonicalize_key_tensor'}
+          src=open(sys.argv[1]).read(); lines=src.splitlines(); tree=ast.parse(src)
+          wanted={'robust_null_space','_raw_intertwiners','cg_maps','fixed_basis_sorted','ordered_basis','inv_tensor_fixed','local_matrix','transition_choices','low_raw_C','recover_phase'}
           for node in tree.body:
               if isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef)) and node.name in wanted:
                   print(f'===== {node.name} lines {node.lineno}-{node.end_lineno} =====')
                   print('\n'.join(lines[node.lineno-1:node.end_lineno]))
-          print('===== FUNCTIONS TOUCHING EIGSH/QR/SVD =====')
-          for node in tree.body:
-              if isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef)):
-                  txt='\n'.join(lines[node.lineno-1:node.end_lineno])
-                  if any(tok in txt for tok in ('eigsh','svd(','qr(','null_space')):
-                      print(f'===== {node.name} lines {node.lineno}-{node.end_lineno} =====')
-                      print(txt)
+          print('===== GLOBAL CACHE/FIXED DEFINITIONS =====')
+          for i,line in enumerate(lines,1):
+              if any(tok in line for tok in ('FIXED_LABELS','DIRECTDIR','CGDIR','FIXEDDIR','cgc.','_orig_null_space')):
+                  print(f'{i}: {line}')
           PY

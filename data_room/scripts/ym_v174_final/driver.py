@@ -227,6 +227,21 @@ def stage_merge():
     print(json.dumps(rep, indent=2), flush=True)
     if not complete:
         raise RuntimeError(('incomplete crossing coverage', merged, 'expected', [(0, int(NLOW))]))
+    # reducer.main() refuses to go past the crossing unless it is self-adjoint
+    # and matches EXPECTED_G:
+    #     if GD>1e-8 or GE>1e-6: raise RuntimeError('crossing tripwire failed')
+    # stage_merge only recorded GD and GE in merge_report.json and carried on, so
+    # a crossing the pinned reducer would reject flowed into emit and produced an
+    # N_D. Run 33356599908 did exactly that: GD 4.0356 against 1e-8 and GE 61.23
+    # against 1e-6, eight and seven orders over, and still went green because the
+    # only thing merge enforced was coverage. Enforce what main() enforces.
+    GD = abs(R2 - W2); GE = abs(R2 - G['EXPECTED_G'])
+    print(f'CROSSING_FINAL {R2} {W2} gramdiff {GD} expected_err {GE}', flush=True)
+    if os.environ.get('V174_ALLOW_BAD_CROSSING') == '1':
+        print('::warning::crossing tripwire bypassed by V174_ALLOW_BAD_CROSSING; '
+              'any N_D downstream is diagnostic only', flush=True)
+    elif GD > 1e-8 or GE > 1e-6:
+        raise RuntimeError(('crossing tripwire failed', R2, W2, G['EXPECTED_G'], GD, GE))
     return rep
 
 

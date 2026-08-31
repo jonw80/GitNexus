@@ -9,37 +9,29 @@ permissions:
 jobs:
   inspect:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-        with: {fetch-depth: 0}
-      - uses: actions/setup-python@v5
-        with: {python-version: '3.13'}
-      - run: python -m pip install --disable-pip-version-check numpy==2.3.5 scipy==1.17.0 opt_einsum==3.4.0
-      - name: Decode reducer and inspect numerical basis functions
+        with:
+          fetch-depth: 0
+      - name: Decode reducer and print numerical kernels
         shell: bash
         run: |
           set -euo pipefail
-          git show 0d81eccf2d1123a69ac75fb2cf0e9d87eefea09a:data_room/scripts/ym_v174_final/run_external_norm.py.xz.b64 | tr -d '\r\n' | base64 --decode | xz --decompress --stdout > "$RUNNER_TEMP/reducer.py"
-          export RED="$RUNNER_TEMP/reducer.py"
-          python - <<'PY'
-          import os,importlib.util,inspect,re
-          spec=importlib.util.spec_from_file_location('ren',os.environ['RED']); ren=importlib.util.module_from_spec(spec); spec.loader.exec_module(ren)
-          names=['local_matrix','invariant_basis','inv_basis','null_space','canonicalize_basis','su3_invariant_basis']
-          seen=set()
-          def emit(name):
-              f=getattr(ren,name,None)
-              if f is None or not callable(f) or f in seen: return
-              seen.add(f); print('\n===',name,'===');
-              try: print(inspect.getsource(f))
-              except Exception as e: print('NO_SOURCE',e)
-              try: print('CO_NAMES',f.__code__.co_names)
-              except: pass
-          for n in names: emit(n)
-          lm=getattr(ren,'local_matrix')
-          for n in lm.__code__.co_names: emit(n)
-          text=open(os.environ['RED']).read().splitlines()
-          print('\n=== NUMERICAL CALL SITES ===')
-          pats=('null_space','svd(','eigh(','eig(','qr(','lstsq(','pinv(','1e-13','1e-14')
-          for i,line in enumerate(text,1):
-              if any(p in line for p in pats): print(f'{i}: {line}')
+          RED="$RUNNER_TEMP/reducer.py"
+          git show 0d81eccf2d1123a69ac75fb2cf0e9d87eefea09a:data_room/scripts/ym_v174_final/run_external_norm.py.xz.b64 \
+            | tr -d '\r\n' | base64 --decode | xz --decompress --stdout > "$RED"
+          sha256sum "$RED"
+          python - "$RED" <<'PY'
+          import ast,sys
+          p=sys.argv[1]; src=open(p).read(); lines=src.splitlines(); tree=ast.parse(src)
+          wanted={'local_matrix','get_inv','get_action_cg','null_basis','transition_choices','low_raw_C','recover_phase','invariant_basis','inv_basis','canonicalize_basis','su3_invariant_basis'}
+          for node in tree.body:
+              if isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef)) and node.name in wanted:
+                  print(f'===== {node.name} lines {node.lineno}-{node.end_lineno} =====')
+                  print('\n'.join(lines[node.lineno-1:node.end_lineno]))
+          print('===== SVD/LINALG/CUTOFF CALLS =====')
+          for i,line in enumerate(lines,1):
+              if any(tok in line for tok in ('svd','eigh','eig','qr','null_space','lstsq','pinv','matrix_rank','1e-13','1e-14','1e-12')):
+                  print(f'{i}: {line}')
           PY

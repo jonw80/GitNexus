@@ -1,0 +1,106 @@
+name: YM V174 P2 Pinned Regression
+on:
+  push:
+    branches:
+      - chatgpt/ym-v174-phase-rootcause-20260831
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  p2-pinned:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install custody numerical stack
+        run: python -m pip install --disable-pip-version-check numpy==2.1.3 scipy==1.14.1 opt_einsum==3.4.0
+      - name: Reconstruct exact V174 input
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=data_room/primary/ym_v174_final/input_v3
+          WORK="$RUNNER_TEMP/v174-p2"
+          mkdir -p "$WORK/extract" "$WORK/out" "$WORK/cache"
+          python - <<'PY'
+          import json,hashlib,pathlib,base64,os
+          root=pathlib.Path('data_room/primary/ym_v174_final/input_v3')
+          m=json.loads((root/'manifest.json').read_text())
+          alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+          repaired=[]; audit=[]
+          for ent in m['parts']:
+              s=(root/ent['name']).read_text().strip()
+              got=hashlib.sha256(s.encode()).hexdigest()
+              if len(s)==ent['chars'] and got==ent['sha256']:
+                  rs=s; mode='exact'
+              elif len(s)==ent['chars']-1:
+                  rs=None
+                  for pos in range(len(s)+1):
+                      for ch in alphabet:
+                          cand=s[:pos]+ch+s[pos:]
+                          if hashlib.sha256(cand.encode()).hexdigest()==ent['sha256']:
+                              rs=cand; mode=f'insert:{pos}:{ch}'; break
+                      if rs is not None: break
+                  if rs is None: raise RuntimeError(ent['name'])
+              else: raise RuntimeError((ent['name'],len(s),got))
+              repaired.append(rs); audit.append((ent['name'],mode))
+          raw=base64.b64decode(''.join(repaired),validate=True)
+          assert len(raw)==74708
+          assert hashlib.sha256(raw).hexdigest()=='b61862df391281c9920569215c8757d6e7b6e204aaa9936dd8fe189bbe43af1a'
+          p=pathlib.Path(os.environ['RUNNER_TEMP'])/'v174-p2'/'input.tar.xz'; p.write_bytes(raw)
+          print('P1_PASS',len(raw),hashlib.sha256(raw).hexdigest(),audit)
+          PY
+          tar -xJf "$WORK/input.tar.xz" -C "$WORK/extract"
+      - name: Decode custody-era reducer
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show 0d81eccf2d1123a69ac75fb2cf0e9d87eefea09a:data_room/scripts/ym_v174_final/run_external_norm.py.xz.b64 \
+            | tr -d '\r\n' | base64 --decode | xz --decompress --stdout > "$RUNNER_TEMP/v174-p2/reducer_0d81.py"
+          sha256sum "$RUNNER_TEMP/v174-p2/reducer_0d81.py"
+      - name: Run P2 invariant probe
+        shell: bash
+        env:
+          OMP_NUM_THREADS: '1'
+          OPENBLAS_NUM_THREADS: '1'
+          MKL_NUM_THREADS: '1'
+          PYTHONUNBUFFERED: '1'
+        run: |
+          set -euo pipefail
+          export V174_INPUT="$RUNNER_TEMP/v174-p2/extract"
+          export V174_OUT="$RUNNER_TEMP/v174-p2/out"
+          export V174_CACHE="$RUNNER_TEMP/v174-p2/cache"
+          export RED="$RUNNER_TEMP/v174-p2/reducer_0d81.py"
+          python - <<'PY' 2>&1 | tee "$RUNNER_TEMP/v174-p2/out/p2.log"
+          import os,sys,json,importlib.util,numpy as np,scipy,scipy.sparse as sp,pathlib,time
+          spec=importlib.util.spec_from_file_location('ren',os.environ['RED'])
+          ren=importlib.util.module_from_spec(spec); spec.loader.exec_module(ren)
+          t=time.time(); C,outside=ren.low_raw_C(); s,ncc,contr,eigres,logc=ren.recover_phase(C)
+          M=(ren.A*(C@sp.diags(s.astype(float)))+sp.diags(logc)).tocsr()
+          D=(M-M.T).tocoo(); phase_sym=float(np.abs(D.data).max()) if D.nnz else 0.0
+          rep={
+            'schema':'GZYM_V174_P2_PINNED_REGRESSION_V1',
+            'numpy':np.__version__,'scipy':scipy.__version__,
+            'reducer_commit':'0d81eccf2d1123a69ac75fb2cf0e9d87eefea09a',
+            'low_raw_nnz':int(C.nnz),'outside':int(outside),
+            'ncc':int(ncc),'contr':int(contr),'eigres_qonly':float(eigres),
+            'phase_symmetry_max':phase_sym,
+            'proof_P2_pass':bool(ncc==1 and contr==0 and phase_sym<=1e-8),
+            'nnz_proof_diagnostic_band_pass':bool(150556<=C.nnz<=150746),
+            'seconds':time.time()-t
+          }
+          p=pathlib.Path(os.environ['V174_OUT'])/'p2_pinned_regression.json'; p.write_text(json.dumps(rep,indent=2))
+          np.save(pathlib.Path(os.environ['V174_OUT'])/'phase_pinned.npy',s)
+          print(json.dumps(rep,indent=2))
+          if not rep['proof_P2_pass']: raise SystemExit(2)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v174-p2-pinned-regression
+          path: ${{ runner.temp }}/v174-p2/out/
+          if-no-files-found: error

@@ -25,13 +25,16 @@ jobs:
           python - "$RED" <<'PY'
           import ast,sys
           p=sys.argv[1]; src=open(p).read(); lines=src.splitlines(); tree=ast.parse(src)
-          wanted={'local_matrix','get_inv','get_action_cg','null_basis','transition_choices','low_raw_C','recover_phase','invariant_basis','inv_basis','canonicalize_basis','su3_invariant_basis'}
+          wanted={'robust_null_space','ordered_basis','local_matrix','cg_maps','inv_tensor_fixed','get_inv','get_action_cg','null_basis','transition_choices','low_raw_C','recover_phase','canonicalize_key_tensor'}
           for node in tree.body:
               if isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef)) and node.name in wanted:
                   print(f'===== {node.name} lines {node.lineno}-{node.end_lineno} =====')
                   print('\n'.join(lines[node.lineno-1:node.end_lineno]))
-          print('===== SVD/LINALG/CUTOFF CALLS =====')
-          for i,line in enumerate(lines,1):
-              if any(tok in line for tok in ('svd','eigh','eig','qr','null_space','lstsq','pinv','matrix_rank','1e-13','1e-14','1e-12')):
-                  print(f'{i}: {line}')
+          print('===== FUNCTIONS TOUCHING EIGSH/QR/SVD =====')
+          for node in tree.body:
+              if isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef)):
+                  txt='\n'.join(lines[node.lineno-1:node.end_lineno])
+                  if any(tok in txt for tok in ('eigsh','svd(','qr(','null_space')):
+                      print(f'===== {node.name} lines {node.lineno}-{node.end_lineno} =====')
+                      print(txt)
           PY

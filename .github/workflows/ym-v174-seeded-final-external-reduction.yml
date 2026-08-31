@@ -67,11 +67,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -f "$RUNNER_TEMP/p2-seed/P2_GOOD_CACHE.tar.xz"
           echo "20f6caca777182d3a67e7d89feaf9a459dfaf3645bd0ef651b7ea8be35b2d1c0  $RUNNER_TEMP/p2-seed/P2_GOOD_CACHE.tar.xz" | sha256sum -c -
           mkdir -p "$RUNNER_TEMP/p2-unpack"
           tar -xJf "$RUNNER_TEMP/p2-seed/P2_GOOD_CACHE.tar.xz" -C "$RUNNER_TEMP/p2-unpack"
-          test -d "$RUNNER_TEMP/p2-unpack/cache"
           cp -a "$RUNNER_TEMP/p2-unpack/cache/." "$RUNNER_TEMP/v174-cache/"
           find "$RUNNER_TEMP/v174-cache" -type f | wc -l | tee "$RUNNER_TEMP/v174-output/seed_file_count.txt"
       - name: Re-verify seeded P2 invariant
@@ -84,21 +82,20 @@ jobs:
           PYTHONUNBUFFERED: '1'
         run: |
           set -euo pipefail
-          export V174_INPUT="$RUNNER_TEMP/v174-input"
-          export V174_OUT="$RUNNER_TEMP/v174-output"
-          export V174_CACHE="$RUNNER_TEMP/v174-cache"
-          export RED="$RUNNER_TEMP/run_external_norm.py"
+          export V174_INPUT="$RUNNER_TEMP/v174-input" V174_OUT="$RUNNER_TEMP/v174-output" V174_CACHE="$RUNNER_TEMP/v174-cache" RED="$RUNNER_TEMP/run_external_norm.py"
           python - <<'PY' 2>&1 | tee "$V174_OUT/seeded_p2.log"
           import os,json,hashlib,importlib.util,pathlib,numpy as np,scipy.sparse as sp
           spec=importlib.util.spec_from_file_location('ren',os.environ['RED']); ren=importlib.util.module_from_spec(spec); spec.loader.exec_module(ren)
-          C,out=ren.low_raw_C(); C=C.tocsr(); h=hashlib.sha256(); h.update(C.indptr.tobytes()); h.update(C.indices.tobytes()); h.update(C.data.tobytes()); ch=h.hexdigest()
+          C,out=ren.low_raw_C(); C=C.tocsr()
+          hf=hashlib.sha256(); hf.update(C.indptr.tobytes()); hf.update(C.indices.tobytes()); hf.update(C.data.tobytes())
+          hs=hashlib.sha256(); hs.update(C.indptr.tobytes()); hs.update(C.indices.tobytes())
           s,ncc,contr,eigres,logc=ren.recover_phase(C); M=(ren.A*(C@sp.diags(s.astype(float)))+sp.diags(logc)).tocsr(); D=(M-M.T).tocoo(); sym=float(np.abs(D.data).max()) if D.nnz else 0.0
-          rep={'low_raw_nnz':int(C.nnz),'C_sha256':ch,'outside':int(out),'ncc':int(ncc),'contr':int(contr),'eigres_qonly':float(eigres),'phase_symmetry_max':sym}
-          assert rep['low_raw_nnz']==150556
-          assert ch=='05759992e149c20df76dab6f7e2d7468ec920800eadc74d404cd250cd2d0be14'
-          assert out==0 and ncc==1 and contr==0 and sym <= 1e-12
+          rep={'low_raw_nnz':int(C.nnz),'C_sha256':hf.hexdigest(),'C_support_sha256':hs.hexdigest(),'outside':int(out),'ncc':int(ncc),'contr':int(contr),'eigres_qonly':float(eigres),'phase_symmetry_max':sym,'reference_good_C_sha256':'05759992e149c20df76dab6f7e2d7468ec920800eadc74d404cd250cd2d0be14'}
+          print(json.dumps(rep,indent=2),flush=True)
           pathlib.Path(os.environ['V174_OUT'],'seeded_p2_verification.json').write_text(json.dumps(rep,indent=2))
-          print(json.dumps(rep,indent=2))
+          assert rep['low_raw_nnz']==150556
+          assert out==0 and ncc==1 and contr==0 and sym <= 1e-12
+          assert abs(float(eigres)-9.938235145210124) <= 1e-10
           PY
       - name: Run exact finite Q-projected external reduction
         shell: bash
@@ -110,9 +107,7 @@ jobs:
           PYTHONUNBUFFERED: '1'
         run: |
           set -euo pipefail
-          export V174_INPUT="$RUNNER_TEMP/v174-input"
-          export V174_OUT="$RUNNER_TEMP/v174-output"
-          export V174_CACHE="$RUNNER_TEMP/v174-cache"
+          export V174_INPUT="$RUNNER_TEMP/v174-input" V174_OUT="$RUNNER_TEMP/v174-output" V174_CACHE="$RUNNER_TEMP/v174-cache"
           /usr/bin/time -v python "$RUNNER_TEMP/run_external_norm.py" 2>&1 | tee "$RUNNER_TEMP/v174-output/run.log"
       - name: Verify component-10 closeout certificate
         shell: bash

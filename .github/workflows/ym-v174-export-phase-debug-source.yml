@@ -1,4 +1,5 @@
 name: YM V174 Export Phase Debug Source
+# trigger pinned P2 regression 2026-08-31
 on:
   push:
     branches:

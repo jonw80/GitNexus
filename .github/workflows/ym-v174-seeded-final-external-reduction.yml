@@ -1,0 +1,137 @@
+name: YM V174 Seeded Final External Reduction
+on:
+  push:
+    branches:
+      - chatgpt/ym-v174-phase-rootcause-20260831
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  external-norm:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install final numerical stack
+        run: python -m pip install --disable-pip-version-check numpy==2.1.3 scipy==1.14.1 opt_einsum==3.4.0
+      - name: Reconstruct exact V174 input and reducer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/v174-input" "$RUNNER_TEMP/v174-output" "$RUNNER_TEMP/v174-cache"
+          python - <<'PY'
+          import json,hashlib,pathlib,base64,os
+          root=pathlib.Path('data_room/primary/ym_v174_final/input_v3'); m=json.loads((root/'manifest.json').read_text())
+          alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+          repaired=[]; audit=[]
+          for ent in m['parts']:
+              s=(root/ent['name']).read_text().strip(); got=hashlib.sha256(s.encode()).hexdigest()
+              if len(s)==ent['chars'] and got==ent['sha256']:
+                  rs=s; mode='exact'
+              elif len(s)==ent['chars']-1:
+                  rs=None
+                  for pos in range(len(s)+1):
+                      for ch in alphabet:
+                          cand=s[:pos]+ch+s[pos:]
+                          if hashlib.sha256(cand.encode()).hexdigest()==ent['sha256']:
+                              rs=cand; mode=f'insert:{pos}:{ch}'; break
+                      if rs is not None: break
+                  if rs is None: raise RuntimeError(ent['name'])
+              else: raise RuntimeError((ent['name'],len(s),got))
+              repaired.append(rs); audit.append({'name':ent['name'],'mode':mode})
+          raw=base64.b64decode(''.join(repaired),validate=True)
+          assert len(raw)==74708
+          assert hashlib.sha256(raw).hexdigest()=='b61862df391281c9920569215c8757d6e7b6e204aaa9936dd8fe189bbe43af1a'
+          p=pathlib.Path(os.environ['RUNNER_TEMP']); (p/'v174-input.tar.xz').write_bytes(raw)
+          (p/'v174-output'/'input_repair_audit.json').write_text(json.dumps({'archive_sha256':hashlib.sha256(raw).hexdigest(),'repairs':audit},indent=2))
+          PY
+          tar -xJf "$RUNNER_TEMP/v174-input.tar.xz" -C "$RUNNER_TEMP/v174-input"
+          git show 0d81eccf2d1123a69ac75fb2cf0e9d87eefea09a:data_room/scripts/ym_v174_final/run_external_norm.py.xz.b64 \
+            | tr -d '\r\n' | base64 --decode | xz --decompress --stdout > "$RUNNER_TEMP/run_external_norm.py"
+          echo "032078134a07145c1ca06b80ed695055ec52aafc04f6918d07f4c9d0a24339b3  $RUNNER_TEMP/run_external_norm.py" | sha256sum -c -
+      - name: Download P2-good custody seed
+        uses: actions/download-artifact@v4
+        with:
+          name: v174-p2-cache-capture-7
+          path: ${{ runner.temp }}/p2-seed
+          github-token: ${{ github.token }}
+          repository: jonw80/GitNexus
+          run-id: '33428057024'
+      - name: Verify and install custody seed
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f "$RUNNER_TEMP/p2-seed/P2_GOOD_CACHE.tar.xz"
+          echo "20f6caca777182d3a67e7d89feaf9a459dfaf3645bd0ef651b7ea8be35b2d1c0  $RUNNER_TEMP/p2-seed/P2_GOOD_CACHE.tar.xz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/p2-unpack"
+          tar -xJf "$RUNNER_TEMP/p2-seed/P2_GOOD_CACHE.tar.xz" -C "$RUNNER_TEMP/p2-unpack"
+          test -d "$RUNNER_TEMP/p2-unpack/cache"
+          cp -a "$RUNNER_TEMP/p2-unpack/cache/." "$RUNNER_TEMP/v174-cache/"
+          find "$RUNNER_TEMP/v174-cache" -type f | wc -l | tee "$RUNNER_TEMP/v174-output/seed_file_count.txt"
+      - name: Re-verify seeded P2 invariant
+        shell: bash
+        env:
+          OMP_NUM_THREADS: '1'
+          OPENBLAS_NUM_THREADS: '1'
+          MKL_NUM_THREADS: '1'
+          PYTHONHASHSEED: '0'
+          PYTHONUNBUFFERED: '1'
+        run: |
+          set -euo pipefail
+          export V174_INPUT="$RUNNER_TEMP/v174-input"
+          export V174_OUT="$RUNNER_TEMP/v174-output"
+          export V174_CACHE="$RUNNER_TEMP/v174-cache"
+          export RED="$RUNNER_TEMP/run_external_norm.py"
+          python - <<'PY' 2>&1 | tee "$V174_OUT/seeded_p2.log"
+          import os,json,hashlib,importlib.util,pathlib,numpy as np,scipy.sparse as sp
+          spec=importlib.util.spec_from_file_location('ren',os.environ['RED']); ren=importlib.util.module_from_spec(spec); spec.loader.exec_module(ren)
+          C,out=ren.low_raw_C(); C=C.tocsr(); h=hashlib.sha256(); h.update(C.indptr.tobytes()); h.update(C.indices.tobytes()); h.update(C.data.tobytes()); ch=h.hexdigest()
+          s,ncc,contr,eigres,logc=ren.recover_phase(C); M=(ren.A*(C@sp.diags(s.astype(float)))+sp.diags(logc)).tocsr(); D=(M-M.T).tocoo(); sym=float(np.abs(D.data).max()) if D.nnz else 0.0
+          rep={'low_raw_nnz':int(C.nnz),'C_sha256':ch,'outside':int(out),'ncc':int(ncc),'contr':int(contr),'eigres_qonly':float(eigres),'phase_symmetry_max':sym}
+          assert rep['low_raw_nnz']==150556
+          assert ch=='05759992e149c20df76dab6f7e2d7468ec920800eadc74d404cd250cd2d0be14'
+          assert out==0 and ncc==1 and contr==0 and sym <= 1e-12
+          pathlib.Path(os.environ['V174_OUT'],'seeded_p2_verification.json').write_text(json.dumps(rep,indent=2))
+          print(json.dumps(rep,indent=2))
+          PY
+      - name: Run exact finite Q-projected external reduction
+        shell: bash
+        env:
+          OMP_NUM_THREADS: '1'
+          OPENBLAS_NUM_THREADS: '1'
+          MKL_NUM_THREADS: '1'
+          PYTHONHASHSEED: '0'
+          PYTHONUNBUFFERED: '1'
+        run: |
+          set -euo pipefail
+          export V174_INPUT="$RUNNER_TEMP/v174-input"
+          export V174_OUT="$RUNNER_TEMP/v174-output"
+          export V174_CACHE="$RUNNER_TEMP/v174-cache"
+          /usr/bin/time -v python "$RUNNER_TEMP/run_external_norm.py" 2>&1 | tee "$RUNNER_TEMP/v174-output/run.log"
+      - name: Verify component-10 closeout certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,os,pathlib,hashlib
+          out=pathlib.Path(os.environ['RUNNER_TEMP'])/'v174-output'; p=out/'a10_B10_component10.json'; r=json.loads(p.read_text()); c=r['checks']
+          assert r['schema']=='GZYM_V174_A10_B10_V1'
+          assert c['crossing_self_adjoint_pass'] and c['crossing_expected_pass'] and c['Q_projection_pass'] and c['B10_psd']
+          nd=float(r['D_raw_W_norm2']); assert nd >= 517.0582352140381
+          rep={'schema':'GZYM_V174_COMPONENT10_SEEDED_CLOSEOUT_V1','result_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'G10':r['G10'],'A10':r['A10'],'D_raw_W_norm2':nd,'M2':r['M2'],'B10_1_star_B10_1':r['B10_1_star_B10_1'],'checks':c,'historical_G10':204.7027765713,'fresh_G10_diagnostic':204.7027392787848,'p2_seed_sha256':'20f6caca777182d3a67e7d89feaf9a459dfaf3645bd0ef651b7ea8be35b2d1c0'}
+          (out/'component10_seeded_closeout.json').write_text(json.dumps(rep,indent=2)); print(json.dumps(rep,indent=2))
+          PY
+      - name: Upload seeded V174 external certificate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ym-v174-seeded-final-external-result
+          path: ${{ runner.temp }}/v174-output/
+          if-no-files-found: warn
+          compression-level: 6

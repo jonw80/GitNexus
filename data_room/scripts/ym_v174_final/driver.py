@@ -227,6 +227,13 @@ def stage_merge():
     print(json.dumps(rep, indent=2), flush=True)
     if not complete:
         raise RuntimeError(('incomplete crossing coverage', merged, 'expected', [(0, int(NLOW))]))
+    # The crossing is intrinsically failing this, not failing because it was
+    # sharded. Measured: the whole range in one pass gives R2 143.47117460110553
+    # W2 147.5067533361104 GD 4.0355787350048615, against the eight-shard
+    # 143.47117460110593 / 147.50675333611065 / 4.035578735004719 -- agreeing to
+    # 4e-13, which is summation-order noise. So splitting the crossing is sound
+    # and the tripwire failure is upstream of every stage in this driver.
+    #
     # reducer.main() refuses to go past the crossing unless it is self-adjoint
     # and matches EXPECTED_G:
     #     if GD>1e-8 or GE>1e-6: raise RuntimeError('crossing tripwire failed')

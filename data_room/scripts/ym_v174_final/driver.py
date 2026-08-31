@@ -33,21 +33,55 @@ NLOW = G['NLOW']; psi = G['psi']; A = G['A']
 
 
 def _phase():
-    p = OUT / 'phase.npy'
-    if p.exists():
-        return np.load(p)
+    """Recover the phase and ALWAYS run reducer.main()'s gate on it.
+
+    This used to return a cached phase.npy untouched, and build_cg_inventory
+    writes that file discarding ncc/contr/eigres/logc, so the gate
+
+        if ncc!=1 or contr!=0 or phase_sym>1e-8: raise 'phase check failed'
+
+    was executed by no stage of the two-phase pipeline. reducer.main() runs it
+    before it will touch the crossing, and it is the first real gate in the
+    finite DAG: the phase multiplies psi into phi, so a bad s makes the crossing,
+    N_D, M_2 and B*B all meaningless.
+
+    On the shipped payload the gate fails, and not marginally: ncc=1 but
+    contr=662 and phase_sym=3.6878428905235627, against the proof's recorded
+    P2 defect of 1.78e-15. The cached phase.npy is bit-identical to a fresh
+    recomputation, so this is deterministic, not corruption, and the payload is
+    the right one -- its archive sha256 matches the proof's P1 record and
+    part_003 carries the documented insert:1167:T repair.
+
+    The reducer is explicit that this invariant "needs nothing beyond the
+    payload", so the absent coupling_QP.npy does not excuse it; that file gates
+    only the separate EIGRES_WITH_COUPLING residual.
+
+    Cost of checking is 26 s (low_raw_C 25 s, recover_phase 1 s), so it is run
+    unconditionally and phase.npy is demoted to a cache that must agree.
+    """
     import scipy.sparse as sp
+    p = OUT / 'phase.npy'
     C, outside = G['low_raw_C']()
     s, ncc, contr, eigres, logc = G['recover_phase'](C)
-    # Save first so a failed check still leaves an artifact.
-    np.save(p, s); np.save(OUT / 'logc.npy', logc)
     print(f'PHASE ncc={ncc} contr={contr} eigres={eigres} nnz={C.nnz}', flush=True)
     _M = (G['A'] * (C @ sp.diags(s.astype(float))) + sp.diags(logc)).tocsr()
     _D = (_M - _M.T).tocoo()
     phase_sym = float(np.abs(_D.data).max()) if _D.nnz else 0.0
     del _M, _D
     print(f'PHASE_SYMMETRY {phase_sym}', flush=True)
-    if ncc != 1 or contr != 0 or phase_sym > 1e-8:
+    if p.exists():
+        cached = np.load(p)
+        if cached.shape != s.shape or not bool((cached == s).all()):
+            raise RuntimeError(('cached phase.npy disagrees with a fresh recovery',
+                                p.as_posix()))
+        print('PHASE_CACHE_AGREES', flush=True)
+    else:
+        np.save(p, s)
+    np.save(OUT / 'logc.npy', logc)
+    if os.environ.get('V174_ALLOW_BAD_PHASE') == '1':
+        print('::warning::phase gate bypassed by V174_ALLOW_BAD_PHASE; everything '
+              'downstream is diagnostic only', flush=True)
+    elif ncc != 1 or contr != 0 or phase_sym > 1e-8:
         raise RuntimeError(('phase check failed', ncc, contr, phase_sym))
     del C; gc.collect()
     return s
@@ -747,14 +781,45 @@ def stage_combine():
 
 
 def _finish(ND, red):
+    """Close M_2 and B*B on the pinned normalisation, not on the measured R.R.
+
+    The proof fixes G_10 as an input scalar, not as whatever the crossing happens
+    to produce. Its affine identities
+
+        M_2   = c_D N_D - 39.919379946853591744...
+        B*B   = c_D N_D - 51.529020387403949591...
+        c_D   = 0.09965805953380343182...
+
+    reproduce to every digit from a = 4.51666..., XLOG, LOGNORM and
+    G_10 = 204.7027392787848, and from no other normalisation: c_D is exactly
+    a^2/G_10, and the PSD zero 517.05823521403812591... is exactly
+    (A_10^2 - k)/c_D on the same G_10.
+
+    This function previously divided by float(R @ R), the crossing's own Gram.
+    When the crossing is sound the tripwire in stage_merge forces the two to
+    agree to 1e-6 and the choice is invisible; when it is not, dividing by the
+    measured value silently rescales M_2 and B*B and compares the result against
+    a floor derived from the pinned one. Run 33356599908 did that: R.R came out
+    143.4711746011053, so the reported M_2 252.85 and B*B 241.24 were on a
+    normalisation 1.4268x away from the one the floor belongs to.
+
+    The measured Gram is kept in the record as a check on the crossing, and the
+    fresh/historical custody fork is recorded rather than silently resolved.
+    """
     z = np.load(OUT / 'crossing_component10.npz')
-    R = z['R']; Gm = float(R @ R)
+    R = z['R']; Gm_measured = float(R @ R)
+    G10 = float(G['EXPECTED_G'])          # pinned; 204.7027392787848 (fresh)
+    G10_HIST = 204.7027765713             # superseded, kept for the custody note
     XLOG = -1228.86890836319450; LOGNORM = 2929.1760467826693
     A10 = G['EXPECTED_A']
-    M2 = (A * A * ND + 2 * A * XLOG + LOGNORM) / Gm
+    M2 = (A * A * ND + 2 * A * XLOG + LOGNORM) / G10
     B2 = M2 - A10 * A10
     floor = 517.05823521403812592
-    out = {'N_D': float(ND), 'G10': Gm, 'A10': A10, 'M2': float(M2),
+    out = {'N_D': float(ND), 'G10': G10, 'G10_source': 'pinned EXPECTED_G (fresh)',
+           'G10_historical': G10_HIST,
+           'G10_measured_RdotR': Gm_measured,
+           'G10_abs_diff': abs(Gm_measured - G10),
+           'A10': A10, 'M2': float(M2),
            'B10_1_star_B10_1': float(B2), 'psd': bool(B2 >= -1e-10),
            'preregistered_floor': floor, 'floor_satisfied': bool(ND >= floor),
            'reduce': red}

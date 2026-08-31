@@ -56,9 +56,24 @@ def build(budget):
     if p.exists():
         s = np.load(p)
     else:
+        import scipy.sparse as sp
         C, _ = G['low_raw_C']()
         s, ncc, contr, eigres, logc = G['recover_phase'](C)
-        np.save(p, s); del C; gc.collect()
+        # This used to save s and throw ncc/contr/eigres/logc away, so the phase
+        # that every Phase 2 job consumes was never checked by anybody --
+        # reducer.main() gates on it before it will run the crossing. Gate here
+        # too, at the point the artifact is produced.
+        _M = (G['A'] * (C @ sp.diags(s.astype(float))) + sp.diags(logc)).tocsr()
+        _D = (_M - _M.T).tocoo()
+        phase_sym = float(np.abs(_D.data).max()) if _D.nnz else 0.0
+        print('PHASE', 'ncc', ncc, 'contr', contr, 'eigres', eigres, flush=True)
+        print('PHASE_SYMMETRY', phase_sym, flush=True)
+        del _M, _D
+        np.save(p, s); np.save(G['OUT'] / 'logc.npy', logc)
+        if os.environ.get('V174_ALLOW_BAD_PHASE') != '1' and (
+                ncc != 1 or contr != 0 or phase_sym > 1e-8):
+            raise RuntimeError(('phase check failed', ncc, contr, phase_sym))
+        del C; gc.collect()
     phi = s.astype(float) * G['psi']
     low_states = G['low_states']; NLOW = G['NLOW']
     t0 = time.time(); solved0 = len(list((CACHE / 'ns').glob('*.npy')))

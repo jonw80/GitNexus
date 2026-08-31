@@ -11,14 +11,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Decode reducer
+        with:
+          fetch-depth: 0
+      - name: Decode current and historical reducers
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p export
-          base64 --decode data_room/scripts/ym_v174_final/run_external_norm.py.xz.b64 | xz --decompress --stdout > export/run_external_norm.py
-          cp data_room/scripts/ym_v174_final/driver.py export/
-          cp data_room/scripts/ym_v174_final/build_cg_inventory.py export/
+          base64 --decode data_room/scripts/ym_v174_final/run_external_norm.py.xz.b64 | xz --decompress --stdout > export/run_external_norm_current.py
+          cp data_room/scripts/ym_v174_final/driver.py export/driver_current.py
+          cp data_room/scripts/ym_v174_final/build_cg_inventory.py export/build_cg_inventory_current.py
+          for c in 08e91c5a221c89fe630f3ac1717326c257a722b5 0d81eccf2d1123a69ac75fb2cf0e9d87eefea09a 4e6f4773bf5ec720d78bbfaec3d0846608d80852 d0c96d7fffaeb72d5366e15ef0576bf5f435b142; do
+            if git cat-file -e "$c:data_room/scripts/ym_v174_final/run_external_norm.py.xz.b64" 2>/dev/null; then
+              git show "$c:data_room/scripts/ym_v174_final/run_external_norm.py.xz.b64" | tr -d '\r\n' | base64 --decode | xz --decompress --stdout > "export/reducer_${c:0:8}.py"
+            fi
+            if git cat-file -e "$c:data_room/scripts/ym_v174_final/driver.py" 2>/dev/null; then
+              git show "$c:data_room/scripts/ym_v174_final/driver.py" > "export/driver_${c:0:8}.py"
+            fi
+          done
           sha256sum export/* > export/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:

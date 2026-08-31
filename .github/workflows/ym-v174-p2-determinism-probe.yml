@@ -23,7 +23,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          W="$RUNNER_TEMP/p2det"; mkdir -p "$W/extract" "$W/out"
+          W="$RUNNER_TEMP/p2det"; mkdir -p "$W/extract" "$W/out" "$W/cache"
           python - <<'PY'
           import json,hashlib,pathlib,base64,os
           root=pathlib.Path('data_room/primary/ym_v174_final/input_v3'); m=json.loads((root/'manifest.json').read_text())
@@ -61,9 +61,10 @@ jobs:
           set -euo pipefail
           export V174_INPUT="$RUNNER_TEMP/p2det/extract"
           export V174_OUT="$RUNNER_TEMP/p2det/out"
+          export V174_CACHE="$RUNNER_TEMP/p2det/cache"
           export RED="$RUNNER_TEMP/p2det/reducer.py"
           python - <<'PY' 2>&1 | tee "$RUNNER_TEMP/p2det/out/probe.log"
-          import os,sys,inspect,importlib.util,hashlib,tempfile,pathlib,numpy as np,scipy,scipy.sparse as sp
+          import os,sys,inspect,importlib.util,hashlib,pathlib,numpy as np,scipy,scipy.sparse as sp
           print('PY',sys.version); print('NUMPY',np.__version__,'SCIPY',scipy.__version__)
           np.show_config()
           spec=importlib.util.spec_from_file_location('ren',os.environ['RED']); ren=importlib.util.module_from_spec(spec); spec.loader.exec_module(ren)

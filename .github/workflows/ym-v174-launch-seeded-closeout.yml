@@ -1,0 +1,27 @@
+name: YM V174 Launch Seeded Closeout
+
+on:
+  push:
+    branches:
+      - chatgpt/ym-v174-pinned-p2-corrected-crossing-20260901
+    paths:
+      - '.github/workflows/ym-v174-launch-seeded-closeout.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  launch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch custody-pinned seeded closeout
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run ym-v174-seeded-final-external-reduction.yml \
+            --repo jonw80/GitNexus \
+            --ref chatgpt/ym-v174-phase-rootcause-20260831
+          echo 'Dispatched YM V174 Seeded Final External Reduction on the custody-pinned source branch.'

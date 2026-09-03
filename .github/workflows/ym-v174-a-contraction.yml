@@ -1,0 +1,186 @@
+name: YM V174 A-contraction matrix (Draw pullback)
+
+# Parallel no-bucket <W, P_crossing Draw W> contraction for components
+# 10, 0, 15, 4. Does not emit buckets. Does not merge to main.
+# Pins numpy 2.1.3 / scipy 1.14.1 / python 3.12.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/ym-v174-a-contraction.yml'
+      - 'data_room/scripts/ym_v174_final/draw_pullback_full.py'
+      - 'data_room/scripts/ym_v174_final/driver_generic.py'
+      - 'data_room/primary/ym_v174_final/crossing/**'
+      - 'data_room/primary/ym_v174_final/input_v3/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PIN_NUMPY: '2.1.3'
+  PIN_SCIPY: '1.14.1'
+
+jobs:
+  inventory:
+    name: Phase 1 - CG inventory (shared)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned numerical dependencies
+        run: python -m pip install --disable-pip-version-check "numpy==${PIN_NUMPY}" "scipy==${PIN_SCIPY}" opt_einsum
+      - name: Reconstruct and repair input_v3
+        shell: bash
+        run: bash data_room/scripts/ym_v174_final/reassemble_input_v3.sh
+      - name: Decode reducer
+        shell: bash
+        run: |
+          python - <<'PY'
+          import base64, lzma, pathlib, os
+          b = pathlib.Path('data_room/scripts/ym_v174_final/run_external_norm.py.xz.b64').read_text()
+          out = pathlib.Path(os.environ['RUNNER_TEMP']) / 'run_external_norm.py'
+          out.write_bytes(lzma.decompress(base64.b64decode(b)))
+          print('decoded', out, out.stat().st_size)
+          PY
+      - name: Build CG inventory
+        env:
+          V174_INPUT: ${{ runner.temp }}/v174-v3/extract
+          V174_OUT: ${{ runner.temp }}/v174-out
+          V174_CACHE: ${{ runner.temp }}/v174-cache
+          V174_REDUCER: ${{ runner.temp }}/run_external_norm.py
+        run: |
+          mkdir -p "$V174_OUT" "$V174_CACHE"
+          python data_room/scripts/ym_v174_final/build_cg_inventory.py --build
+          python data_room/scripts/ym_v174_final/build_cg_inventory.py --manifest "$RUNNER_TEMP/cg_inventory_manifest.json"
+      - name: Package inventory
+        run: |
+          mkdir -p artifact
+          tar czf artifact/cg_inventory.tar.gz -C "$RUNNER_TEMP" v174-cache
+          cp "$RUNNER_TEMP/cg_inventory_manifest.json" artifact/
+          cp "$RUNNER_TEMP/v174-out/phase.npy" artifact/ || true
+          cp "$RUNNER_TEMP/v174-out/logc.npy" artifact/ || true
+          ls -la artifact
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v174-cg-inventory-contract
+          path: artifact/
+          retention-days: 30
+
+  contract:
+    name: A-contraction component ${{ matrix.component }}
+    needs: inventory
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        # 0/15/4 need component npz payloads not in input_v3.
+        component: [10]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned numerical dependencies
+        run: python -m pip install --disable-pip-version-check "numpy==${PIN_NUMPY}" "scipy==${PIN_SCIPY}" opt_einsum
+      - name: Reconstruct and repair input_v3
+        shell: bash
+        run: bash data_room/scripts/ym_v174_final/reassemble_input_v3.sh
+      - name: Decode generic reducer
+        shell: bash
+        run: |
+          python - <<'PY'
+          import base64, lzma, pathlib, os
+          b = pathlib.Path('data_room/scripts/ym_v174_final/run_external_norm_generic.py.xz.b64').read_text()
+          out = pathlib.Path(os.environ['RUNNER_TEMP']) / 'run_external_norm_generic.py'
+          out.write_bytes(lzma.decompress(base64.b64decode(b)))
+          print('decoded', out, out.stat().st_size)
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: v174-cg-inventory-contract
+          path: ${{ runner.temp }}/inv
+      - name: Restore inventory
+        env:
+          V174_CACHE: ${{ runner.temp }}/v174-cache
+        run: |
+          set -euxo pipefail
+          TAR=$(find "$RUNNER_TEMP/inv" -name 'cg_inventory.tar.gz' | head -n 1)
+          MANIFEST=$(find "$RUNNER_TEMP/inv" -name 'cg_inventory_manifest.json' | head -n 1)
+          tar xzf "$TAR" -C "$RUNNER_TEMP"
+          python data_room/scripts/ym_v174_final/build_cg_inventory.py --verify "$MANIFEST"
+      - name: Crossing npz (build in CI; do not LLM-transcribe part_*)
+        env:
+          COMP: ${{ matrix.component }}
+          V174_INPUT: ${{ runner.temp }}/v174-v3/extract
+          V174_OUT: ${{ runner.temp }}/v174-out
+          V174_CACHE: ${{ runner.temp }}/v174-cache
+          V174_REDUCER: ${{ runner.temp }}/run_external_norm_generic.py
+          V174_SHARDS: ${{ runner.temp }}/v174-shards
+          V174_COMPONENT: ${{ matrix.component }}
+          OMP_NUM_THREADS: '1'
+          OPENBLAS_NUM_THREADS: '1'
+          MKL_NUM_THREADS: '1'
+          NUMEXPR_NUM_THREADS: '1'
+          PYTHONUNBUFFERED: '1'
+        run: |
+          set -euxo pipefail
+          mkdir -p "$V174_OUT" "$V174_SHARDS"
+          find "$RUNNER_TEMP/inv" -name 'phase.npy' -exec cp {} "$V174_OUT/phase.npy" \;
+          find "$RUNNER_TEMP/inv" -name 'logc.npy' -exec cp {} "$V174_OUT/logc.npy" \;
+          ls -la "$V174_OUT" || true
+          ROOT=data_room/primary/ym_v174_final/crossing/component${COMP}
+          if ls "$ROOT"/part_* >/dev/null 2>&1; then
+            python - <<'PY'
+          import base64, pathlib, os, hashlib
+          comp=os.environ['COMP']
+          root=pathlib.Path(f'data_room/primary/ym_v174_final/crossing/component{comp}')
+          parts=sorted(root.glob('part_*'))
+          b64=''.join(p.read_text().strip() for p in parts)
+          raw=base64.b64decode(b64, validate=True)
+          out=pathlib.Path(os.environ['RUNNER_TEMP'])/f'crossing_component{comp}.npz'
+          out.write_bytes(raw)
+          print('reassembled', out, out.stat().st_size, hashlib.sha256(raw).hexdigest())
+          PY
+          else
+            echo "No part_* for component ${COMP}; building crossing from input_v3 via driver_generic"
+            D=data_room/scripts/ym_v174_final/driver_generic.py
+            python -u "$D" cross 0 7576 100000
+            python -u "$D" merge
+            cp "$V174_OUT/crossing_component${COMP}.npz" "$RUNNER_TEMP/crossing_component${COMP}.npz"
+            ls -la "$RUNNER_TEMP/crossing_component${COMP}.npz"
+            test -f "$V174_OUT/merge_report.json" && cat "$V174_OUT/merge_report.json"
+          fi
+      - name: Run Draw-pullback contraction
+        env:
+          V174_INPUT: ${{ runner.temp }}/v174-v3/extract
+          V174_OUT: ${{ runner.temp }}/v174-out
+          V174_CACHE: ${{ runner.temp }}/v174-cache
+          V174_COMPONENT: ${{ matrix.component }}
+          V174_CROSSING: ${{ runner.temp }}/crossing_component${{ matrix.component }}.npz
+          V174_CONTRACT_OUT: ${{ runner.temp }}/contraction_component${{ matrix.component }}.json
+          V174_CONTRACT_CKPT: ${{ runner.temp }}/contraction_component${{ matrix.component }}.ckpt.json
+          OMP_NUM_THREADS: '1'
+          OPENBLAS_NUM_THREADS: '1'
+          MKL_NUM_THREADS: '1'
+          NUMEXPR_NUM_THREADS: '1'
+          PYTHONUNBUFFERED: '1'
+          V174_REDUCER: ${{ runner.temp }}/run_external_norm_generic.py
+        run: |
+          set -euxo pipefail
+          mkdir -p "$V174_OUT"
+          python -u data_room/scripts/ym_v174_final/draw_pullback_full.py
+          cat "$V174_CONTRACT_OUT"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v174-contraction-component-${{ matrix.component }}
+          path: |
+            ${{ runner.temp }}/contraction_component${{ matrix.component }}.json
+            ${{ runner.temp }}/contraction_component${{ matrix.component }}.ckpt.json
+          retention-days: 90

@@ -1,0 +1,172 @@
+name: YM V174 Final External Reduction
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-inputs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/ym-v174-final-external-reduction-20260824
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install numerical dependencies
+        run: python -m pip install --disable-pip-version-check numpy scipy opt_einsum
+      - name: Reconstruct V174 V3 from manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT=data_room/primary/ym_v174_final/input_v3
+          RES="$RUNNER_TEMP/v174-results"
+          WORK="$RUNNER_TEMP/v174-v3"
+          mkdir -p "$RES" "$WORK/repaired" "$WORK/extract"
+          python - <<'PY'
+          import json, hashlib, pathlib, base64, lzma, os
+          root=pathlib.Path('data_room/primary/ym_v174_final/input_v3')
+          res=pathlib.Path(os.environ['RUNNER_TEMP'])/'v174-results'
+          work=pathlib.Path(os.environ['RUNNER_TEMP'])/'v174-v3'
+          m=json.loads((root/'manifest.json').read_text())
+          alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+          repaired=[]; audit=[]
+          for ent in m['parts']:
+              s=(root/ent['name']).read_text().strip(); got=hashlib.sha256(s.encode()).hexdigest()
+              if len(s)==ent['chars'] and got==ent['sha256']:
+                  rs=s; mode='exact'
+              elif len(s)==ent['chars']-1:
+                  rs=None
+                  for pos in range(len(s)+1):
+                      for ch in alphabet:
+                          cand=s[:pos]+ch+s[pos:]
+                          if hashlib.sha256(cand.encode()).hexdigest()==ent['sha256']:
+                              rs=cand; mode=f'insert:{pos}:{ch}'; break
+                      if rs is not None: break
+                  if rs is None: raise RuntimeError(f'unable to repair {ent["name"]}')
+              else:
+                  raise RuntimeError(f'unexpected shard {ent["name"]}: len={len(s)} expected={ent["chars"]} sha={got}')
+              repaired.append(rs); audit.append({'name':ent['name'],'input_chars':len(s),'output_chars':len(rs),'mode':mode,'sha256':hashlib.sha256(rs.encode()).hexdigest()})
+          b64=''.join(repaired)
+          assert len(b64)==m['base64_chars']
+          raw=base64.b64decode(b64,validate=True); sha=hashlib.sha256(raw).hexdigest()
+          assert sha==m['archive_sha256'] and len(raw)==m['archive_bytes']
+          lzma.decompress(raw)
+          (work/'input.tar.xz').write_bytes(raw)
+          (res/'v3_repair_audit.json').write_text(json.dumps({'schema':'GZYM_V174_V3_REPAIR_AUDIT','manifest':m,'repairs':audit,'archive_sha256':sha,'archive_bytes':len(raw)},indent=2))
+          (res/'v3_status.txt').write_text('COMPLETE\n')
+          PY
+          tar -tJf "$WORK/input.tar.xz" | sort > "$RES/v3_inventory.txt"
+          tar -xJf "$WORK/input.tar.xz" -C "$WORK/extract"
+          find "$WORK/extract" -type f -printf '%P %s bytes\n' | sort > "$RES/v3_sizes.txt"
+          python - <<'PY'
+          import numpy as np, json, os, pathlib
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'v174-v3'/'extract'
+          d=np.load(root/'component10.npz',allow_pickle=False)
+          info={'files':d.files,'arrays':{k:{'shape':list(d[k].shape),'dtype':str(d[k].dtype)} for k in d.files},'constants':json.loads((root/'constants.json').read_text())}
+          (pathlib.Path(os.environ['RUNNER_TEMP'])/'v174-results'/'component10_schema.json').write_text(json.dumps(info,indent=2))
+          print(json.dumps(info,indent=2))
+          PY
+      - name: Decode external norm reducer
+        shell: bash
+        run: |
+          set -euo pipefail
+          RES="$RUNNER_TEMP/v174-results"
+          mkdir -p "$RES/reducer"
+          base64 --decode data_room/scripts/ym_v174_final/run_external_norm.py.xz.b64 | xz --decompress --stdout > "$RES/reducer/run_external_norm.py"
+          python - <<'PY'
+          import hashlib, os, pathlib, json
+          p=pathlib.Path(os.environ['RUNNER_TEMP'])/'v174-results'/'reducer'/'run_external_norm.py'
+          out={'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()}
+          (p.parent/'sha256.json').write_text(json.dumps(out,indent=2))
+          print(out)
+          PY
+      - name: Upload validated V3 inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: ym-v174-v3-validated
+          path: ${{ runner.temp }}/v174-results/
+          if-no-files-found: error
+      - name: Upload validated V3 compute payload
+        uses: actions/upload-artifact@v4
+        with:
+          name: ym-v174-v3-compute-payload
+          path: ${{ runner.temp }}/v174-v3/extract/
+          if-no-files-found: error
+      - name: Upload reducer inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: ym-v174-reducer-inspection
+          path: ${{ runner.temp }}/v174-results/reducer/
+          if-no-files-found: error
+
+  external-norm:
+    needs: inspect-inputs
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/ym-v174-final-external-reduction-20260824
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install numerical dependencies
+        run: python -m pip install --disable-pip-version-check numpy scipy opt_einsum
+      - name: Download validated V174 compute payload
+        uses: actions/download-artifact@v4
+        with:
+          name: ym-v174-v3-compute-payload
+          path: ${{ runner.temp }}/v174-input
+      - name: Decode committed external norm reducer
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 --decode data_room/scripts/ym_v174_final/run_external_norm.py.xz.b64 | xz --decompress --stdout > "$RUNNER_TEMP/run_external_norm.py"
+          python -m py_compile "$RUNNER_TEMP/run_external_norm.py"
+      - name: Run finite Q-projected external reduction
+        shell: bash
+        env:
+          OMP_NUM_THREADS: '1'
+          OPENBLAS_NUM_THREADS: '1'
+          MKL_NUM_THREADS: '1'
+          PYTHONUNBUFFERED: '1'
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/v174-output" "$RUNNER_TEMP/v174-cache"
+          export V174_INPUT="$RUNNER_TEMP/v174-input"
+          export V174_OUT="$RUNNER_TEMP/v174-output"
+          export V174_CACHE="$RUNNER_TEMP/v174-cache"
+          /usr/bin/time -v python "$RUNNER_TEMP/run_external_norm.py" 2>&1 | tee "$RUNNER_TEMP/v174-output/run.log"
+      - name: Verify final certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, pathlib, hashlib
+          out=pathlib.Path(os.environ['RUNNER_TEMP'])/'v174-output'
+          p=out/'a10_B10_component10.json'
+          r=json.loads(p.read_text())
+          checks=r['checks']
+          assert r['schema']=='GZYM_V174_A10_B10_V1'
+          assert checks['crossing_self_adjoint_pass']
+          assert checks['crossing_expected_pass']
+          assert checks['Q_projection_pass']
+          assert checks['B10_psd']
+          assert r['D_raw_W_norm2'] >= 0
+          assert r['B10_1_star_B10_1'] >= -1e-10
+          audit={'result_sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'schema':r['schema'],'G10':r['G10'],'A10':r['A10'],'D_raw_W_norm2':r['D_raw_W_norm2'],'M2':r['M2'],'B10_1_star_B10_1':r['B10_1_star_B10_1'],'checks':checks}
+          (out/'final_verification.json').write_text(json.dumps(audit,indent=2))
+          print(json.dumps(audit,indent=2))
+          PY
+      - name: Upload V174 final external certificate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ym-v174-final-external-result
+          path: ${{ runner.temp }}/v174-output/
+          if-no-files-found: warn

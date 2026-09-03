@@ -1,0 +1,254 @@
+name: YM V174 Two-Phase External Reduction
+
+# Splits the reduction into the part that needs memory and the part that does not.
+#
+# Phase 1 (inventory) walks the crossing purely for its side effects, discarding
+# the accumulators so they never compete with LAPACK, and caches every
+# intertwiner solve. The largest, 9142x4824, needs ~2.0 GiB for dgesdd alone
+# (U 0.33 + Vh 0.17 + workspace ~7n^2 = 1.21 + M 0.33) and OOM-kills a 4 GiB box
+# even with the accumulators empty. It then hashes the result into a manifest and
+# publishes it as an artifact.
+#
+# Phase 2 (reduce) restores that inventory, VERIFIES it against the manifest, and
+# runs crossing -> merge -> emit -> reduce. It never opens a large SVD, so it
+# needs roughly 1 GiB and runs anywhere.
+#
+# The pinning matters beyond memory. robust_null_space falls back from gesdd to
+# gesvd whenever gesdd raises LinAlgError, and whether gesdd converges is version
+# and platform dependent -- so which driver produces a given intertwiner basis is
+# not currently fixed across machines. Pinning the inventory by hash makes every
+# later run consume exactly the bases the pinned run produced, which turns the
+# reduction into a deterministic function of an auditable artifact.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/ym-v174-two-phase-reduction.yml'
+      - 'data_room/primary/ym_v174_final/**'
+      - 'data_room/scripts/ym_v174_final/**'
+  workflow_dispatch:
+    inputs:
+      run_phase2:
+        description: 'Also run the reduction after building the inventory'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  PIN_NUMPY: '2.1.3'
+  PIN_SCIPY: '1.14.1'
+  # Forced by B*B = ||(I - VV*)Y||^2 >= 0. Cauchy-Schwarz gives only
+  # 515.85567979296883742, weaker by 0.233%, so this is the binding check.
+  # A_10 does not involve the norm and cannot detect a violation.
+  N_D_FLOOR: '517.05823521403812592'
+
+jobs:
+  inventory:
+    name: Phase 1 - build and pin the CG inventory
+    runs-on: ubuntu-latest      # 16 GiB; the 9142x4824 solve needs ~8 GiB headroom
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned numerical dependencies
+        run: python -m pip install --disable-pip-version-check "numpy==${PIN_NUMPY}" "scipy==${PIN_SCIPY}" opt_einsum
+      - name: Report available memory
+        run: free -g; nproc
+      - name: Reconstruct and repair input_v3
+        shell: bash
+        run: bash data_room/scripts/ym_v174_final/reassemble_input_v3.sh
+      - name: Decode reducer
+        shell: bash
+        run: |
+          python - <<'PY'
+          import base64, lzma, pathlib, os
+          b = pathlib.Path('data_room/scripts/ym_v174_final/run_external_norm.py.xz.b64').read_text()
+          out = pathlib.Path(os.environ['RUNNER_TEMP']) / 'run_external_norm.py'
+          out.write_bytes(lzma.decompress(base64.b64decode(b)))
+          print('decoded', out, out.stat().st_size, 'bytes')
+          PY
+      - name: Build CG inventory
+        env:
+          V174_INPUT: ${{ runner.temp }}/v174-v3/extract
+          V174_OUT: ${{ runner.temp }}/v174-out
+          V174_CACHE: ${{ runner.temp }}/v174-cache
+          V174_REDUCER: ${{ runner.temp }}/run_external_norm.py
+        run: |
+          mkdir -p "$V174_OUT" "$V174_CACHE"
+          python data_room/scripts/ym_v174_final/build_cg_inventory.py --build
+      - name: Pin the inventory
+        env:
+          V174_CACHE: ${{ runner.temp }}/v174-cache
+        run: |
+          python data_room/scripts/ym_v174_final/build_cg_inventory.py \
+            --manifest "$RUNNER_TEMP/cg_inventory_manifest.json"
+          cp "$RUNNER_TEMP/cg_inventory_manifest.json" .
+      - name: Package inventory
+        run: |
+          mkdir -p artifact
+          tar czf artifact/cg_inventory.tar.gz -C "$RUNNER_TEMP" v174-cache
+          cp "$RUNNER_TEMP/cg_inventory_manifest.json" artifact/
+          cp "$RUNNER_TEMP/v174-out/phase.npy" artifact/ || true
+          cp "$RUNNER_TEMP/v174-out/logc.npy" artifact/ || true
+          ls -la artifact
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v174-cg-inventory
+          path: artifact/
+          retention-days: 90
+
+  reduce:
+    name: Phase 2 - verify inventory and reduce to N_D
+    needs: inventory
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_phase2 }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned numerical dependencies
+        run: python -m pip install --disable-pip-version-check "numpy==${PIN_NUMPY}" "scipy==${PIN_SCIPY}" opt_einsum
+      - name: Reconstruct and repair input_v3
+        shell: bash
+        run: bash data_room/scripts/ym_v174_final/reassemble_input_v3.sh
+      - name: Decode reducer
+        shell: bash
+        run: |
+          python - <<'PY'
+          import base64, lzma, pathlib, os
+          b = pathlib.Path('data_room/scripts/ym_v174_final/run_external_norm.py.xz.b64').read_text()
+          out = pathlib.Path(os.environ['RUNNER_TEMP']) / 'run_external_norm.py'
+          out.write_bytes(lzma.decompress(base64.b64decode(b)))
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: v174-cg-inventory
+          path: ${{ runner.temp }}/inv
+      - name: Restore and verify the pinned inventory
+        env:
+          V174_CACHE: ${{ runner.temp }}/v174-cache
+        run: |
+          set -euxo pipefail
+          find "$RUNNER_TEMP/inv" -type f -printf '%p %s\n'
+          TAR=$(find "$RUNNER_TEMP/inv" -name 'cg_inventory.tar.gz' | head -n 1)
+          MANIFEST=$(find "$RUNNER_TEMP/inv" -name 'cg_inventory_manifest.json' | head -n 1)
+          test -n "$TAR" && test -n "$MANIFEST"
+          tar xzf "$TAR" -C "$RUNNER_TEMP"
+          ls -la "$RUNNER_TEMP/v174-cache"
+          python data_room/scripts/ym_v174_final/build_cg_inventory.py --verify "$MANIFEST"
+      - name: Prepare Phase 2 workspace
+        env:
+          V174_OUT: ${{ runner.temp }}/v174-out
+          V174_SHARDS: ${{ runner.temp }}/v174-shards
+        run: |
+          set -euxo pipefail
+          mkdir -p "$V174_OUT" "$V174_SHARDS"
+          find "$RUNNER_TEMP/inv" -name 'phase.npy' -exec cp {} "$V174_OUT/phase.npy" \;
+          find "$RUNNER_TEMP/inv" -name 'logc.npy' -exec cp {} "$V174_OUT/logc.npy" \;
+          ls -la "$V174_OUT"
+      - name: Cross
+        env:
+          V174_INPUT: ${{ runner.temp }}/v174-v3/extract
+          V174_OUT: ${{ runner.temp }}/v174-out
+          V174_CACHE: ${{ runner.temp }}/v174-cache
+          V174_REDUCER: ${{ runner.temp }}/run_external_norm.py
+          V174_SHARDS: ${{ runner.temp }}/v174-shards
+          OMP_NUM_THREADS: '1'
+          OPENBLAS_NUM_THREADS: '1'
+          MKL_NUM_THREADS: '1'
+          NUMEXPR_NUM_THREADS: '1'
+          PYTHONUNBUFFERED: '1'
+        run: |
+          set -euxo pipefail
+          D=data_room/scripts/ym_v174_final/driver.py
+          python -u "$D" cross 0 7576 100000 2>&1 | tee -a "$V174_OUT/driver.log"
+      - name: Merge (no prefix double-count)
+        env:
+          V174_INPUT: ${{ runner.temp }}/v174-v3/extract
+          V174_OUT: ${{ runner.temp }}/v174-out
+          V174_CACHE: ${{ runner.temp }}/v174-cache
+          V174_REDUCER: ${{ runner.temp }}/run_external_norm.py
+          V174_SHARDS: ${{ runner.temp }}/v174-shards
+          PYTHONUNBUFFERED: '1'
+        run: |
+          set -euxo pipefail
+          D=data_room/scripts/ym_v174_final/driver.py
+          python -u "$D" merge 2>&1 | tee -a "$V174_OUT/driver.log"
+          test -f "$V174_OUT/merge_report.json"
+          python - <<'PY'
+          import json, os, pathlib, sys
+          r=json.loads((pathlib.Path(os.environ['V174_OUT'])/'merge_report.json').read_text())
+          print(json.dumps(r, indent=2))
+          if not r.get('complete'):
+              sys.exit('incomplete crossing')
+          used=r.get('shards_used') or []
+          if len(used)!=1:
+              sys.exit(f'expected one shard, got {used}')
+          PY
+      - name: Emit
+        env:
+          V174_INPUT: ${{ runner.temp }}/v174-v3/extract
+          V174_OUT: ${{ runner.temp }}/v174-out
+          V174_CACHE: ${{ runner.temp }}/v174-cache
+          V174_REDUCER: ${{ runner.temp }}/run_external_norm.py
+          V174_SHARDS: ${{ runner.temp }}/v174-shards
+          OMP_NUM_THREADS: '1'
+          OPENBLAS_NUM_THREADS: '1'
+          MKL_NUM_THREADS: '1'
+          NUMEXPR_NUM_THREADS: '1'
+          PYTHONUNBUFFERED: '1'
+        run: |
+          set -euxo pipefail
+          D=data_room/scripts/ym_v174_final/driver.py
+          python -u "$D" emit 2>&1 | tee -a "$V174_OUT/driver.log"
+      - name: Reduce to N_D
+        env:
+          V174_INPUT: ${{ runner.temp }}/v174-v3/extract
+          V174_OUT: ${{ runner.temp }}/v174-out
+          V174_CACHE: ${{ runner.temp }}/v174-cache
+          V174_REDUCER: ${{ runner.temp }}/run_external_norm.py
+          V174_SHARDS: ${{ runner.temp }}/v174-shards
+          PYTHONUNBUFFERED: '1'
+        run: |
+          set -euxo pipefail
+          D=data_room/scripts/ym_v174_final/driver.py
+          python -u "$D" reduce 2>&1 | tee -a "$V174_OUT/driver.log"
+      - name: Enforce the pre-registered floor
+        env:
+          V174_OUT: ${{ runner.temp }}/v174-out
+        run: |
+          python - <<'PY'
+          import json, os, pathlib, sys
+          p = pathlib.Path(os.environ['V174_OUT']) / 'a10_B10_component10.json'
+          r = json.loads(p.read_text())
+          floor = float(os.environ['N_D_FLOOR'])
+          print(json.dumps(r, indent=2))
+          fail = []
+          if r['N_D'] < floor:
+              fail.append(f"N_D {r['N_D']!r} below the forced floor {floor!r}")
+          if not r['psd']:
+              fail.append(f"B*B not PSD: {r['B10_1_star_B10_1']!r}")
+          if fail:
+              print('FAILED:'); [print(' -', f) for f in fail]; sys.exit(1)
+          print('N_D clears the floor and B*B is PSD.')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v174-reduction-results
+          path: |
+            ${{ runner.temp }}/v174-out/a10_B10_component10.json
+            ${{ runner.temp }}/v174-out/merge_report.json
+            ${{ runner.temp }}/v174-out/driver.log
+            ${{ runner.temp }}/v174-out/crossing_component10.npz
+            ${{ runner.temp }}/v174-out/phase.npy
+            ${{ runner.temp }}/v174-out/logc.npy
+          if-no-files-found: warn
+          retention-days: 90

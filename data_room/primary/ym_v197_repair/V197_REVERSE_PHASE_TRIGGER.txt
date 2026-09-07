@@ -1,0 +1,3 @@
+V197 reverse low-phase correction certificate trigger.
+Source targeted forensic run: 34143555150.
+Required test: apply the recovered low diagonal phase s_i to the reverse low-vector coefficient and verify individual and aggregate reciprocity across all 78 historical magnitude-defect targets.

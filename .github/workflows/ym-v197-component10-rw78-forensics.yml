@@ -1,0 +1,166 @@
+name: YM V197 Component-10 R/W 78-Target Forensics
+
+on:
+  push:
+    branches:
+      - chatgpt/ym-v197-rootcause-custody-repair-20260907
+    paths:
+      - 'data_room/primary/ym_v197_repair/V197_FORENSIC_TRIGGER.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+env:
+  PIN_NUMPY: '2.1.3'
+  PIN_SCIPY: '1.14.1'
+  PIN_OPT_EINSUM: '3.4.0'
+  HISTORICAL_RUN_ID: '33715499716'
+  HISTORICAL_HEAD: 'ffbedcdeaeb25546e6bc52102f49a9c00a2957c7'
+  HISTORICAL_RESULT_SHA256: 'b0ff4554e0db3579a4915809e90d696b52681ffd0d5f9e112cb6a943dd933682'
+  OMP_NUM_THREADS: '1'
+  OPENBLAS_NUM_THREADS: '1'
+  MKL_NUM_THREADS: '1'
+  NUMEXPR_NUM_THREADS: '1'
+  PYTHONHASHSEED: '0'
+  PYTHONUNBUFFERED: '1'
+
+jobs:
+  forensic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned historical numerical stack
+        run: python -m pip install --disable-pip-version-check "numpy==${PIN_NUMPY}" "scipy==${PIN_SCIPY}" "opt_einsum==${PIN_OPT_EINSUM}"
+      - name: Record runner and BLAS provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/v197-forensic"
+          mkdir -p "$OUT"
+          python --version > "$OUT/python-version.txt" 2>&1
+          python -m pip freeze | sort > "$OUT/pip-freeze.txt"
+          lscpu > "$OUT/lscpu.txt"
+          git rev-parse HEAD > "$OUT/repair-head.txt"
+          python - <<'PY' > "$OUT/numerical-stack.txt"
+          import numpy, scipy, opt_einsum
+          print('numpy='+numpy.__version__)
+          print('scipy='+scipy.__version__)
+          print('opt_einsum='+opt_einsum.__version__)
+          numpy.show_config()
+          PY
+      - name: Materialize exact historical source tree and V174 input
+        shell: bash
+        run: |
+          set -euo pipefail
+          HIST="$RUNNER_TEMP/historical-head"
+          git worktree add --detach "$HIST" "$HISTORICAL_HEAD"
+          (
+            cd "$HIST"
+            bash data_room/scripts/ym_v174_final/reassemble_input_v3.sh
+          )
+          test -d "$RUNNER_TEMP/v174-v3/extract"
+          python - <<'PY'
+          import pathlib,hashlib,json,os
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'v174-v3'/'extract'
+          files=[]
+          for p in sorted(root.rglob('*')):
+              if p.is_file(): files.append({'path':str(p.relative_to(root)),'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()})
+          out=pathlib.Path(os.environ['RUNNER_TEMP'])/'v197-forensic'
+          (out/'historical_input_files.json').write_text(json.dumps(files,indent=2))
+          PY
+      - name: Decode exact reducer from historical run head
+        shell: bash
+        run: |
+          set -euo pipefail
+          HIST="$RUNNER_TEMP/historical-head"
+          python - <<'PY'
+          import base64,lzma,pathlib,hashlib,os,json
+          hist=pathlib.Path(os.environ['RUNNER_TEMP'])/'historical-head'
+          p=hist/'data_room/scripts/ym_v174_final/run_external_norm.py.xz.b64'
+          raw=lzma.decompress(base64.b64decode(p.read_text()))
+          out=pathlib.Path(os.environ['RUNNER_TEMP'])/'run_external_norm_historical.py'
+          out.write_bytes(raw)
+          rep={'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest(),'historical_head':os.environ['HISTORICAL_HEAD']}
+          dst=pathlib.Path(os.environ['RUNNER_TEMP'])/'v197-forensic'/'historical_reducer.json'
+          dst.write_text(json.dumps(rep,indent=2)); print(json.dumps(rep,indent=2))
+          PY
+          python -m py_compile "$RUNNER_TEMP/run_external_norm_historical.py"
+      - name: Download historical crossing result
+        uses: actions/download-artifact@v4
+        with:
+          name: v174-reduction-results
+          path: ${{ runner.temp }}/historical-result
+          github-token: ${{ github.token }}
+          repository: jonw80/GitNexus
+          run-id: 33715499716
+      - name: Download exact CG inventory used by historical run
+        uses: actions/download-artifact@v4
+        with:
+          name: v174-cg-inventory
+          path: ${{ runner.temp }}/historical-inventory
+          github-token: ${{ github.token }}
+          repository: jonw80/GitNexus
+          run-id: 33715499716
+      - name: Restore pinned CG inventory and verify custody files
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAR=$(find "$RUNNER_TEMP/historical-inventory" -name cg_inventory.tar.gz | head -n1)
+          MAN=$(find "$RUNNER_TEMP/historical-inventory" -name cg_inventory_manifest.json | head -n1)
+          test -n "$TAR" && test -n "$MAN"
+          tar xzf "$TAR" -C "$RUNNER_TEMP"
+          test -d "$RUNNER_TEMP/v174-cache"
+          cp "$MAN" "$RUNNER_TEMP/v197-forensic/cg_inventory_manifest.json"
+          sha256sum "$TAR" "$MAN" > "$RUNNER_TEMP/v197-forensic/inventory_sha256.txt"
+          test -f "$RUNNER_TEMP/historical-result/crossing_component10.npz"
+          test -f "$RUNNER_TEMP/historical-result/phase.npy"
+          sha256sum "$RUNNER_TEMP/historical-result/crossing_component10.npz" "$RUNNER_TEMP/historical-result/phase.npy" > "$RUNNER_TEMP/v197-forensic/historical_result_files.sha256"
+      - name: Replay only the 78 magnitude-defect targets
+        shell: bash
+        env:
+          V174_INPUT: ${{ runner.temp }}/v174-v3/extract
+          V174_CACHE: ${{ runner.temp }}/v174-cache
+          V174_OUT: ${{ runner.temp }}/v174-import-out
+          V174_REDUCER: ${{ runner.temp }}/run_external_norm_historical.py
+          V174_HISTORICAL_RESULT: ${{ runner.temp }}/historical-result
+          V197_OUT: ${{ runner.temp }}/v197-forensic
+        run: |
+          set -euo pipefail
+          mkdir -p "$V174_OUT" "$V197_OUT"
+          /usr/bin/time -v python -u data_room/scripts/ym_v197/trace_component10_rw78.py 2>&1 | tee "$V197_OUT/forensic.log"
+      - name: Persist compact forensic result to repair branch
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEST=data_room/primary/ym_v197_repair/runtime
+          mkdir -p "$DEST"
+          cp "$RUNNER_TEMP/v197-forensic/forensic_summary.json" "$DEST/GZYM_V197_RW78_FORENSIC_SUMMARY.json"
+          cp "$RUNNER_TEMP/v197-forensic/target_sign_conflicts.json" "$DEST/target_sign_conflicts.json"
+          cp "$RUNNER_TEMP/v197-forensic/raw_sign_conflicts.json" "$DEST/raw_sign_conflicts.json"
+          cp "$RUNNER_TEMP/v197-forensic/transport_conflicts.json" "$DEST/transport_conflicts.json"
+          cp "$RUNNER_TEMP/v197-forensic/historical_reducer.json" "$DEST/historical_reducer.json"
+          cp "$RUNNER_TEMP/v197-forensic/historical_result_files.sha256" "$DEST/historical_result_files.sha256"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$DEST"
+          if ! git diff --cached --quiet; then
+            git commit -m 'V197: persist targeted R/W root-cause forensic result [skip ci]'
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+      - name: Upload full forensic ledger
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ym-v197-component10-rw78-forensics
+          path: ${{ runner.temp }}/v197-forensic/
+          if-no-files-found: error
+          retention-days: 90

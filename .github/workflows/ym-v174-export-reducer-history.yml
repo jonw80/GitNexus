@@ -8,12 +8,13 @@ permissions:
   contents: read
 jobs:
   export:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Export historical reducers
+      - name: Export historical reducers with immutable custody metadata
         shell: bash
         run: |
           set -euo pipefail
@@ -26,9 +27,18 @@ jobs:
               git show "$c:data_room/scripts/ym_v174_final/driver.py" > "export/driver_${c:0:8}.py"
             fi
           done
-          sha256sum export/* > export/SHA256SUMS.txt
+          sha256sum export/* | sort > export/SHA256SUMS.txt
+          git rev-parse HEAD > export/WORKFLOW_HEAD.txt
+          cat > export/HISTORY_COMMITS.txt <<'EOF'
+          08e91c5a221c89fe630f3ac1717326c257a722b5
+          0d81eccf2d1123a69ac75fb2cf0e9d87eefea09a
+          4e6f4773bf5ec720d78bbfaec3d0846608d80852
+          d0c96d7fffaeb72d5366e15ef0576bf5f435b142
+          EOF
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: v174-reducer-history
           path: export/
           if-no-files-found: error
+          retention-days: 90

@@ -1,0 +1,5 @@
+V197 targeted component-10 R/W 78-target forensic replay trigger.
+Requested: 2026-09-07.
+Historical run: 33715499716.
+Historical head: ffbedcdeaeb25546e6bc52102f49a9c00a2957c7.
+Gate: reproduce all 78 magnitude-defect targets from the immutable crossing artifact, classify the phase/canonicalization failure, and persist the compact result.

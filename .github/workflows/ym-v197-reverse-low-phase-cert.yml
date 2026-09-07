@@ -1,0 +1,63 @@
+name: YM V197 Reverse Low-Phase Correction Certificate
+
+on:
+  push:
+    branches:
+      - chatgpt/ym-v197-rootcause-custody-repair-20260907
+    paths:
+      - 'data_room/primary/ym_v197_repair/V197_REVERSE_PHASE_TRIGGER.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  certify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download exact V197 targeted contribution ledger
+        uses: actions/download-artifact@v4
+        with:
+          name: ym-v197-component10-rw78-forensics
+          path: ${{ runner.temp }}/rw78
+          github-token: ${{ github.token }}
+          repository: jonw80/GitNexus
+          run-id: 34143555150
+      - name: Certify reverse low-phase correction on all 78 defect targets
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC=$(find "$RUNNER_TEMP/rw78" -name forensic_contributions.jsonl | head -n1)
+          test -n "$SRC"
+          WORK="$RUNNER_TEMP/reverse-phase"
+          mkdir -p "$WORK"
+          cp "$SRC" "$WORK/forensic_contributions.jsonl"
+          V197_OUT="$WORK" python data_room/scripts/ym_v197/certify_reverse_low_phase.py | tee "$WORK/cert.log"
+      - name: Persist correction certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEST=data_room/primary/ym_v197_repair/runtime
+          mkdir -p "$DEST"
+          cp "$RUNNER_TEMP/reverse-phase/reverse_low_phase_correction_cert.json" "$DEST/GZYM_V197_REVERSE_LOW_PHASE_CORRECTION_CERT.json"
+          sha256sum "$DEST/GZYM_V197_REVERSE_LOW_PHASE_CORRECTION_CERT.json" > "$DEST/GZYM_V197_REVERSE_LOW_PHASE_CORRECTION_CERT.sha256"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$DEST/GZYM_V197_REVERSE_LOW_PHASE_CORRECTION_CERT.json" "$DEST/GZYM_V197_REVERSE_LOW_PHASE_CORRECTION_CERT.sha256"
+          if ! git diff --cached --quiet; then
+            git commit -m 'V197: certify reverse low-phase correction on 78 targets [skip ci]'
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ym-v197-reverse-low-phase-correction-cert
+          path: ${{ runner.temp }}/reverse-phase/
+          if-no-files-found: error
+          retention-days: 90

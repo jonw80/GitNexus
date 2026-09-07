@@ -1,0 +1,3 @@
+V197 conflict-structure analysis trigger.
+Source forensic run: 34143555150.
+Purpose: reduce the 182 exact targeted contribution records to proof-relevant raw-target contradiction witnesses and symmetry-gauge falsification tests.

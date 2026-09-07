@@ -1,17 +1,20 @@
 {
-  "schema": "GZYM_V197_COMPONENT10_RW_78_TARGET_FORENSIC_FILTER_V1",
+  "schema": "GZYM_V197_COMPONENT10_RW_78_TARGET_FORENSIC_GATE_V2",
   "source_run_id": 33715499716,
+  "source_head_sha": "ffbedcdeaeb25546e6bc52102f49a9c00a2957c7",
   "source_artifact": "v174-reduction-results",
-  "crossing_shape": [
-    1612533,
-    56
-  ],
-  "R2": 204.70277657134127,
-  "W2": 204.7027392787816,
-  "R2_minus_W2": 3.7292559682100546e-05,
+  "source_artifact_id": 9887545103,
+  "source_artifact_digest": "sha256:b0ff4554e0db3579a4915809e90d696b52681ffd0d5f9e112cb6a943dd933682",
+  "crossing_shape": [1612533, 56],
+  "historical_R2": 204.70277657134127,
+  "historical_W2": 204.7027392787816,
+  "historical_R2_minus_W2": 3.7292559682100546e-05,
+  "target_derivation": "derive exactly at runtime from crossing_component10.npz using abs(abs(R)-abs(W)) > 1e-12",
   "threshold_abs_absR_minus_absW": 1e-12,
   "bad_target_count": 78,
   "unique_bad_key48_count": 64,
   "bad_target_norm2_defect_sum": 3.7292559786282996e-05,
-  "targets": []
+  "target_list_custody": "not duplicated in this gate file; trace_component10_rw78.py derives the 78 targets from the immutable historical artifact and emits the full contribution ledger",
+  "forensic_script": "data_room/scripts/ym_v197/trace_component10_rw78.py",
+  "fail_closed": true
 }

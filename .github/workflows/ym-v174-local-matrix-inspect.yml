@@ -8,20 +8,22 @@ permissions:
   contents: read
 jobs:
   inspect:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Decode reducer and print fixed-basis kernels
+      - name: Decode reducer and persist fixed-basis kernels
         shell: bash
         run: |
           set -euo pipefail
-          RED="$RUNNER_TEMP/reducer.py"
+          OUT="$RUNNER_TEMP/v174-local-matrix-inspect"
+          mkdir -p "$OUT"
+          RED="$OUT/reducer.py"
           git show 0d81eccf2d1123a69ac75fb2cf0e9d87eefea09a:data_room/scripts/ym_v174_final/run_external_norm.py.xz.b64 \
             | tr -d '\r\n' | base64 --decode | xz --decompress --stdout > "$RED"
-          python - "$RED" <<'PY'
+          python - "$RED" <<'PY' | tee "$OUT/fixed_basis_kernels.txt"
           import ast,sys
           src=open(sys.argv[1]).read(); lines=src.splitlines(); tree=ast.parse(src)
           wanted={'robust_null_space','_raw_intertwiners','cg_maps','fixed_basis_sorted','ordered_basis','inv_tensor_fixed','local_matrix','transition_choices','low_raw_C','recover_phase'}
@@ -34,3 +36,12 @@ jobs:
               if any(tok in line for tok in ('FIXED_LABELS','DIRECTDIR','CGDIR','FIXEDDIR','cgc.','_orig_null_space')):
                   print(f'{i}: {line}')
           PY
+          sha256sum "$RED" "$OUT/fixed_basis_kernels.txt" > "$OUT/SHA256SUMS.txt"
+          git rev-parse HEAD > "$OUT/WORKFLOW_HEAD.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v174-local-matrix-inspect
+          path: ${{ runner.temp }}/v174-local-matrix-inspect/
+          if-no-files-found: error
+          retention-days: 90

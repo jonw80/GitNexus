@@ -1,0 +1,64 @@
+name: YM V197 R/W 78 Conflict Structure
+
+on:
+  push:
+    branches:
+      - chatgpt/ym-v197-rootcause-custody-repair-20260907
+    paths:
+      - 'data_room/primary/ym_v197_repair/V197_CONFLICT_STRUCTURE_TRIGGER.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  structure:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download successful V197 forensic ledger
+        uses: actions/download-artifact@v4
+        with:
+          name: ym-v197-component10-rw78-forensics
+          path: ${{ runner.temp }}/rw78
+          github-token: ${{ github.token }}
+          repository: jonw80/GitNexus
+          run-id: 34143555150
+      - name: Locate contribution ledger and compute conflict structure
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC=$(find "$RUNNER_TEMP/rw78" -name forensic_contributions.jsonl | head -n1)
+          test -n "$SRC"
+          WORK="$RUNNER_TEMP/rw78-work"
+          mkdir -p "$WORK"
+          cp "$SRC" "$WORK/forensic_contributions.jsonl"
+          V197_OUT="$WORK" python data_room/scripts/ym_v197/summarize_rw78_conflicts.py | tee "$WORK/conflict_structure.log"
+          test -f "$WORK/conflict_structure.json"
+      - name: Persist compact conflict-structure certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          DEST=data_room/primary/ym_v197_repair/runtime
+          mkdir -p "$DEST"
+          cp "$RUNNER_TEMP/rw78-work/conflict_structure.json" "$DEST/GZYM_V197_RW78_CONFLICT_STRUCTURE.json"
+          sha256sum "$DEST/GZYM_V197_RW78_CONFLICT_STRUCTURE.json" > "$DEST/GZYM_V197_RW78_CONFLICT_STRUCTURE.sha256"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$DEST/GZYM_V197_RW78_CONFLICT_STRUCTURE.json" "$DEST/GZYM_V197_RW78_CONFLICT_STRUCTURE.sha256"
+          if ! git diff --cached --quiet; then
+            git commit -m 'V197: persist R/W conflict-structure certificate [skip ci]'
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ym-v197-rw78-conflict-structure
+          path: ${{ runner.temp }}/rw78-work/
+          if-no-files-found: error
+          retention-days: 90

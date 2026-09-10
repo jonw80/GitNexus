@@ -1,0 +1,47 @@
+name: YM Corrected Driver SHA Hunt
+on:
+  push:
+    branches: [ym-corrected-driver-sha-hunt-20260910]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  hunt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Search every reachable Git blob
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --all --tags --prune --force
+          python - <<'PY'
+          import hashlib, subprocess, pathlib, json
+          TARGET='92158d252d77d45798696db657b231d6644d7489178ebaea5caf20de0d1f6e90'
+          out=pathlib.Path('sha_hunt_out'); out.mkdir(exist_ok=True)
+          raw=subprocess.check_output(['git','rev-list','--objects','--all'], text=True, errors='replace')
+          paths_by_oid={}
+          for line in raw.splitlines():
+              p=line.split(' ',1); oid=p[0]; path=p[1] if len(p)>1 else ''
+              paths_by_oid.setdefault(oid,set()).add(path)
+          found=[]; blobs=0
+          for oid,paths in paths_by_oid.items():
+              try: typ=subprocess.check_output(['git','cat-file','-t',oid],text=True).strip()
+              except subprocess.CalledProcessError: continue
+              if typ!='blob': continue
+              blobs+=1; data=subprocess.check_output(['git','cat-file','blob',oid])
+              s=hashlib.sha256(data).hexdigest()
+              if s==TARGET:
+                  rec={'oid':oid,'sha256':s,'size':len(data),'paths':sorted(paths)}; found.append(rec)
+                  (out/f'FOUND_{oid}.bin').write_bytes(data); print('FOUND',json.dumps(rec))
+          result={'target_sha256':TARGET,'blobs_scanned':blobs,'found':found}
+          (out/'SHA_HUNT_RESULT.json').write_text(json.dumps(result,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(result,indent=2,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: corrected-driver-sha-hunt
+          path: sha_hunt_out/*
+          retention-days: 90

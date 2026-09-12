@@ -1,0 +1,245 @@
+name: YM V174 P2 + 92158 Component-10 Crossing
+
+on:
+  push:
+    branches:
+      - chatgpt/ym-v174-p2-driver92158-crossing-20260912
+    paths:
+      - '.github/workflows/ym-v174-p2-driver92158-component10.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  INPUT_SHA256: b61862df391281c9920569215c8757d6e7b6e204aaa9936dd8fe189bbe43af1a
+  REDUCER_SHA256: 032078134a07145c1ca06b80ed695055ec52aafc04f6918d07f4c9d0a24339b3
+  DRIVER_SHA256: 92158d252d77d45798696db657b231d6644d7489178ebaea5caf20de0d1f6e90
+  P2_CACHE_SHA256: 20f6caca777182d3a67e7d89feaf9a459dfaf3645bd0ef651b7ea8be35b2d1c0
+  EXPECTED_G10: '204.7027392787848'
+
+jobs:
+  cross:
+    name: cross-${{ matrix.idx }}-${{ matrix.lo }}-${{ matrix.hi }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {idx: 0, lo: 0,    hi: 947}
+          - {idx: 1, lo: 947,  hi: 1894}
+          - {idx: 2, lo: 1894, hi: 2841}
+          - {idx: 3, lo: 2841, hi: 3788}
+          - {idx: 4, lo: 3788, hi: 4735}
+          - {idx: 5, lo: 4735, hi: 5682}
+          - {idx: 6, lo: 5682, hi: 6629}
+          - {idx: 7, lo: 6629, hi: 7576}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned numerical stack
+        run: python -m pip install --disable-pip-version-check numpy==2.1.3 scipy==1.14.1 opt_einsum==3.4.0
+      - name: Reconstruct exact V174 input and exact code objects
+        shell: bash
+        run: |
+          set -euo pipefail
+          WORK="$RUNNER_TEMP/v174-92158"
+          mkdir -p "$WORK/input" "$WORK/out" "$WORK/cache" "$WORK/shards"
+          python - <<'PY'
+          import json,hashlib,pathlib,base64,os
+          root=pathlib.Path('data_room/primary/ym_v174_final/input_v3')
+          m=json.loads((root/'manifest.json').read_text())
+          alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+          repaired=[]; audit=[]
+          for ent in m['parts']:
+              s=(root/ent['name']).read_text().strip()
+              got=hashlib.sha256(s.encode()).hexdigest()
+              if len(s)==ent['chars'] and got==ent['sha256']:
+                  rs=s; mode='exact'
+              elif len(s)==ent['chars']-1:
+                  rs=None
+                  for pos in range(len(s)+1):
+                      for ch in alphabet:
+                          cand=s[:pos]+ch+s[pos:]
+                          if hashlib.sha256(cand.encode()).hexdigest()==ent['sha256']:
+                              rs=cand; mode=f'insert:{pos}:{ch}'; break
+                      if rs is not None: break
+                  if rs is None: raise RuntimeError(('part repair failed',ent['name']))
+              else:
+                  raise RuntimeError(('part custody failed',ent['name'],len(s),got))
+              repaired.append(rs); audit.append((ent['name'],mode))
+          raw=base64.b64decode(''.join(repaired),validate=True)
+          sha=hashlib.sha256(raw).hexdigest()
+          assert len(raw)==74708 and sha==os.environ['INPUT_SHA256'], (len(raw),sha)
+          p=pathlib.Path(os.environ['RUNNER_TEMP'])/'v174-92158'/'input.tar.xz'
+          p.write_bytes(raw)
+          print('INPUT_CUSTODY_PASS',len(raw),sha,audit)
+          PY
+          tar -xJf "$WORK/input.tar.xz" -C "$WORK/input"
+          git show 0d81eccf2d1123a69ac75fb2cf0e9d87eefea09a:data_room/scripts/ym_v174_final/run_external_norm.py.xz.b64 \
+            | tr -d '\r\n' | base64 --decode | xz --decompress --stdout > "$WORK/reducer.py"
+          git show d0c96d7fffaeb72d5366e15ef0576bf5f435b142:data_room/scripts/ym_v174_final/driver.py > "$WORK/driver.py"
+          echo "$REDUCER_SHA256  $WORK/reducer.py" | sha256sum -c -
+          echo "$DRIVER_SHA256  $WORK/driver.py" | sha256sum -c -
+      - name: Download P2-good custody cache
+        uses: actions/download-artifact@v4
+        with:
+          name: v174-p2-cache-capture-7
+          path: ${{ runner.temp }}/p2-seed
+          github-token: ${{ github.token }}
+          repository: jonw80/GitNexus
+          run-id: 33428057024
+      - name: Verify and install P2-good cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "$P2_CACHE_SHA256  $RUNNER_TEMP/p2-seed/P2_GOOD_CACHE.tar.xz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/p2-unpack"
+          tar -xJf "$RUNNER_TEMP/p2-seed/P2_GOOD_CACHE.tar.xz" -C "$RUNNER_TEMP/p2-unpack"
+          cp -a "$RUNNER_TEMP/p2-unpack/cache/." "$RUNNER_TEMP/v174-92158/cache/"
+          echo "P2_CACHE_FILES $(find "$RUNNER_TEMP/v174-92158/cache" -type f | wc -l)"
+      - name: Cross exact source shard
+        shell: bash
+        env:
+          V174_INPUT: ${{ runner.temp }}/v174-92158/input
+          V174_OUT: ${{ runner.temp }}/v174-92158/out
+          V174_CACHE: ${{ runner.temp }}/v174-92158/cache
+          V174_SHARDS: ${{ runner.temp }}/v174-92158/shards
+          V174_REDUCER: ${{ runner.temp }}/v174-92158/reducer.py
+          OMP_NUM_THREADS: '1'
+          OPENBLAS_NUM_THREADS: '1'
+          MKL_NUM_THREADS: '1'
+          PYTHONHASHSEED: '0'
+          PYTHONUNBUFFERED: '1'
+        run: |
+          set -euo pipefail
+          python "$RUNNER_TEMP/v174-92158/driver.py" cross ${{ matrix.lo }} ${{ matrix.hi }} 10000 \
+            2>&1 | tee "$RUNNER_TEMP/v174-92158/out/cross_${{ matrix.idx }}.log"
+          test -f "$RUNNER_TEMP/v174-92158/shards/cross_${{ matrix.lo }}_${{ matrix.hi }}.npz"
+          python - <<'PY'
+          import numpy as np, pathlib, os
+          p=pathlib.Path(os.environ['V174_SHARDS'])/f"cross_${{ matrix.lo }}_${{ matrix.hi }}.npz"
+          z=np.load(p)
+          print('SHARD_META',p.name,z['meta'].tolist(),'targets',len(z['K']),
+                'R2_partial',float(z['R']@z['R']),'W2_partial',float(z['W']@z['W']))
+          assert int(z['meta'][3])==${{ matrix.hi }}
+          PY
+      - name: Upload exact crossing shard
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v174-92158-cross-${{ matrix.idx }}
+          path: |
+            ${{ runner.temp }}/v174-92158/shards/*.npz
+            ${{ runner.temp }}/v174-92158/out/cross_${{ matrix.idx }}.log
+            ${{ runner.temp }}/v174-92158/out/phase.npy
+            ${{ runner.temp }}/v174-92158/out/logc.npy
+          if-no-files-found: warn
+          retention-days: 30
+
+  merge:
+    name: merge-and-tripwire
+    needs: cross
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned numerical stack
+        run: python -m pip install --disable-pip-version-check numpy==2.1.3 scipy==1.14.1 opt_einsum==3.4.0
+      - name: Reconstruct exact V174 input and exact code objects
+        shell: bash
+        run: |
+          set -euo pipefail
+          WORK="$RUNNER_TEMP/v174-92158"
+          mkdir -p "$WORK/input" "$WORK/out" "$WORK/cache" "$WORK/shards"
+          python - <<'PY'
+          import json,hashlib,pathlib,base64,os
+          root=pathlib.Path('data_room/primary/ym_v174_final/input_v3')
+          m=json.loads((root/'manifest.json').read_text())
+          alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+          repaired=[]
+          for ent in m['parts']:
+              s=(root/ent['name']).read_text().strip(); got=hashlib.sha256(s.encode()).hexdigest()
+              if len(s)==ent['chars'] and got==ent['sha256']:
+                  rs=s
+              elif len(s)==ent['chars']-1:
+                  rs=None
+                  for pos in range(len(s)+1):
+                      for ch in alphabet:
+                          cand=s[:pos]+ch+s[pos:]
+                          if hashlib.sha256(cand.encode()).hexdigest()==ent['sha256']:
+                              rs=cand; break
+                      if rs is not None: break
+                  if rs is None: raise RuntimeError(ent['name'])
+              else: raise RuntimeError((ent['name'],len(s),got))
+              repaired.append(rs)
+          raw=base64.b64decode(''.join(repaired),validate=True)
+          sha=hashlib.sha256(raw).hexdigest(); assert len(raw)==74708 and sha==os.environ['INPUT_SHA256']
+          (pathlib.Path(os.environ['RUNNER_TEMP'])/'v174-92158'/'input.tar.xz').write_bytes(raw)
+          print('INPUT_CUSTODY_PASS',len(raw),sha)
+          PY
+          tar -xJf "$WORK/input.tar.xz" -C "$WORK/input"
+          git show 0d81eccf2d1123a69ac75fb2cf0e9d87eefea09a:data_room/scripts/ym_v174_final/run_external_norm.py.xz.b64 \
+            | tr -d '\r\n' | base64 --decode | xz --decompress --stdout > "$WORK/reducer.py"
+          git show d0c96d7fffaeb72d5366e15ef0576bf5f435b142:data_room/scripts/ym_v174_final/driver.py > "$WORK/driver.py"
+          echo "$REDUCER_SHA256  $WORK/reducer.py" | sha256sum -c -
+          echo "$DRIVER_SHA256  $WORK/driver.py" | sha256sum -c -
+      - name: Download all crossing shards
+        uses: actions/download-artifact@v4
+        with:
+          pattern: v174-92158-cross-*
+          path: ${{ runner.temp }}/downloaded
+          merge-multiple: true
+      - name: Install final shard files
+        shell: bash
+        run: |
+          set -euo pipefail
+          find "$RUNNER_TEMP/downloaded" -name 'cross_*.npz' -type f -print -exec cp {} "$RUNNER_TEMP/v174-92158/shards/" \;
+          ls -lh "$RUNNER_TEMP/v174-92158/shards"
+      - name: Merge and enforce authoritative tripwires
+        shell: bash
+        env:
+          V174_INPUT: ${{ runner.temp }}/v174-92158/input
+          V174_OUT: ${{ runner.temp }}/v174-92158/out
+          V174_CACHE: ${{ runner.temp }}/v174-92158/cache
+          V174_SHARDS: ${{ runner.temp }}/v174-92158/shards
+          V174_REDUCER: ${{ runner.temp }}/v174-92158/reducer.py
+          OMP_NUM_THREADS: '1'
+          OPENBLAS_NUM_THREADS: '1'
+          MKL_NUM_THREADS: '1'
+          PYTHONHASHSEED: '0'
+          PYTHONUNBUFFERED: '1'
+        run: |
+          set -euo pipefail
+          python "$RUNNER_TEMP/v174-92158/driver.py" merge 2>&1 | tee "$RUNNER_TEMP/v174-92158/out/merge.log"
+          python - <<'PY'
+          import json,os,pathlib
+          p=pathlib.Path(os.environ['V174_OUT'])/'merge_report.json'; r=json.loads(p.read_text())
+          print(json.dumps(r,indent=2))
+          assert r['complete'] is True
+          assert abs(float(r['R2'])-float(r['W2'])) <= 1e-8
+          assert abs(float(r['R2'])-float(os.environ['EXPECTED_G10'])) <= 1e-6
+          print('AUTHORITATIVE_COMPONENT10_CROSSING_PASS')
+          PY
+      - name: Upload merge certificate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v174-p2-driver92158-component10-merge
+          path: |
+            ${{ runner.temp }}/v174-92158/out/merge_report.json
+            ${{ runner.temp }}/v174-92158/out/merge.log
+            ${{ runner.temp }}/v174-92158/out/crossing_component10.npz
+          if-no-files-found: warn
+          retention-days: 30

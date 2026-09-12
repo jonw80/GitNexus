@@ -1,0 +1,103 @@
+name: YM V199 C10 Pinned Inventory Gate
+on:
+  push:
+    branches: [chatgpt/ym-v199-pinned-inventory-20260912]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+env:
+  PIN_NUMPY: '2.1.3'
+  PIN_SCIPY: '1.14.1'
+  HIST_RUN: '33715499716'
+  HIST_INV_SHA: 'a52dd10abd71c10340dd364f0287d1a46df150c5a9150a2f3c7e4aa8e8b0bf0a'
+jobs:
+  cross:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix: { shard: [0,1,2,3,4,5,6,7] }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install --disable-pip-version-check "numpy==${PIN_NUMPY}" "scipy==${PIN_SCIPY}" opt_einsum
+      - name: Reassemble exact V174 input
+        shell: bash
+        run: bash data_room/scripts/ym_v174_final/reassemble_input_v3.sh
+      - name: Decode and gate reducer
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import base64,lzma,pathlib,hashlib,os
+          raw=lzma.decompress(base64.b64decode(pathlib.Path('data_room/scripts/ym_v174_final/run_external_norm.py.xz.b64').read_text()))
+          assert hashlib.sha256(raw).hexdigest()=='8d16d84065eeb4269471c125e2e0c25cc4929d37ffebb3d827e642a5bdf8d4c8'
+          pathlib.Path(os.environ['RUNNER_TEMP'],'run_external_norm.py').write_bytes(raw)
+          PY
+      - name: Restore exact historical CG inventory
+        uses: actions/download-artifact@v4
+        with:
+          name: v174-cg-inventory
+          repository: jonw80/GitNexus
+          run-id: ${{ env.HIST_RUN }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/hist-inv
+      - name: Verify and unpack historical inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json,pathlib,os
+          p=pathlib.Path(os.environ['RUNNER_TEMP'])/'hist-inv/cg_inventory_manifest.json'
+          m=json.loads(p.read_text()); print(json.dumps(m,indent=2)); assert m['inventory_sha256']==os.environ['HIST_INV_SHA']
+          PY
+          tar xzf "$RUNNER_TEMP/hist-inv/cg_inventory.tar.gz" -C "$RUNNER_TEMP"
+          V174_CACHE="$RUNNER_TEMP/v174-cache" python data_room/scripts/ym_v174_final/build_cg_inventory.py --verify "$RUNNER_TEMP/hist-inv/cg_inventory_manifest.json"
+      - name: Cross reverse W shard
+        shell: bash
+        env:
+          V174_INPUT: ${{ runner.temp }}/v174-v3/extract
+          V174_CACHE: ${{ runner.temp }}/v174-cache
+          V174_OUT: ${{ runner.temp }}/v174-out
+          V174_REDUCER: ${{ runner.temp }}/run_external_norm.py
+          OMP_NUM_THREADS: '1'
+          OPENBLAS_NUM_THREADS: '1'
+          MKL_NUM_THREADS: '1'
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/v199-shard" "$V174_OUT"
+          cp "$RUNNER_TEMP/hist-inv/phase.npy" "$V174_OUT/phase.npy" || true
+          cp "$RUNNER_TEMP/hist-inv/logc.npy" "$V174_OUT/logc.npy" || true
+          python -u data_room/scripts/ym_v174_final/v199_c10_pinned_inventory.py cross --shard "${{ matrix.shard }}" --nshards 8 --out "$RUNNER_TEMP/v199-shard/v199_c10_${{ matrix.shard }}.npz"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v199-c10-${{ matrix.shard }}
+          path: ${{ runner.temp }}/v199-shard/*
+          retention-days: 90
+  merge:
+    needs: cross
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install --disable-pip-version-check "numpy==${PIN_NUMPY}"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: v199-c10-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/shards
+      - name: Merge and enforce authoritative G10
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/final"
+          python -u data_room/scripts/ym_v174_final/v199_c10_pinned_inventory.py merge --shards "$RUNNER_TEMP/shards" --nshards 8 --outdir "$RUNNER_TEMP/final" | tee "$RUNNER_TEMP/final/merge.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v199-c10-pinned-inventory-cert
+          path: ${{ runner.temp }}/final/*
+          retention-days: 90

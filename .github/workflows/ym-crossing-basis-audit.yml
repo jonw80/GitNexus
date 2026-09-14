@@ -1,4 +1,4 @@
-name: YM Crossing Basis Audit
+name: YM Crossing Dual Transport Check
 on:
   push:
     branches: [chatgpt/ym-crossing-basis-repair-20260914]
@@ -20,6 +20,8 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
       - run: python -m pip install --disable-pip-version-check "numpy==${PIN_NUMPY}" "scipy==${PIN_SCIPY}" "opt_einsum==3.4.0"
+      - name: Check crossing gate regressions
+        run: python data_room/scripts/ym_crossing_repair/test_crossing_gate.py
       - name: Reassemble exact V174 input
         shell: bash
         run: bash data_room/scripts/ym_v174_final/reassemble_input_v3.sh
@@ -65,7 +67,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$V174_OUT"
-          python -u data_room/scripts/ym_crossing_repair/audit_basis.py
+          python -u data_room/scripts/ym_crossing_repair/test_dual_transport.py
       - name: Verify numerical inventory stayed unchanged
         if: always()
         shell: bash
@@ -73,6 +75,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ym-crossing-basis-audit
+          name: ym-crossing-dual-transport
           path: ${{ runner.temp }}/v174-out/*
           retention-days: 90

@@ -1,0 +1,40 @@
+[
+  {
+    "path": "workspace/proof_frontier_v13/moments/exact_spatial_jets.py",
+    "source_sha256": "99321fd7c53b719bc86208f8fa292b23eb5259ec57bc9a0877c21bcbb44be2a3",
+    "staged_sha256": "99321fd7c53b719bc86208f8fa292b23eb5259ec57bc9a0877c21bcbb44be2a3",
+    "changes": []
+  },
+  {
+    "path": "workspace/proof_frontier_v13/moments/temporal_projector_moments.py",
+    "source_sha256": "53d1879c6a17873a3a9a4b33f47aa4af31c4e4c84b110f5da5947e03bd1e4e30",
+    "staged_sha256": "53d1879c6a17873a3a9a4b33f47aa4af31c4e4c84b110f5da5947e03bd1e4e30",
+    "changes": []
+  },
+  {
+    "path": "workspace/proof_frontier_v13/moments/certify_physical_moment_jets.py",
+    "source_sha256": "4cdfacd05f294619fa512dfcbf8bcef60422173b38668077b54f804ba2df1a82",
+    "staged_sha256": "c220ecaf9c316490a4d5b817e694ba07d769b4ef0e3b5df69c1c651c66e718db",
+    "changes": [
+      "Two input paths changed to independently regenerated minimal Wilson inputs. All numerical and matrix calculation code is otherwise byte-identical."
+    ]
+  },
+  {
+    "path": "workspace/dag_closeout_v5/intervals.py",
+    "source_sha256": "c3f49b12e174a0de2136b140af0922c94f492ae6a44de9c14b77eb20309e3f0a",
+    "staged_sha256": "c3f49b12e174a0de2136b140af0922c94f492ae6a44de9c14b77eb20309e3f0a",
+    "changes": []
+  },
+  {
+    "path": "workspace/dag_closeout_v5/certify_wilson.py",
+    "source_sha256": "25d416cd23fd4be1b6ce7e4fe87df361834010061b2aabc85c73081982f40b5a",
+    "staged_sha256": "25d416cd23fd4be1b6ce7e4fe87df361834010061b2aabc85c73081982f40b5a",
+    "changes": []
+  },
+  {
+    "path": "workspace/wilson_transfer_v11/direct_review/certify_gauge_fixed_perron.py",
+    "source_sha256": "bbcabf969ad347fc100f7c1df64010b288dc52eb089bd8f7f0aee42190a254bf",
+    "staged_sha256": "bbcabf969ad347fc100f7c1df64010b288dc52eb089bd8f7f0aee42190a254bf",
+    "changes": []
+  }
+]

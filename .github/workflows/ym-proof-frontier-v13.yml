@@ -1,0 +1,32 @@
+name: Direct Wilson V13 proof frontier
+on:
+  push:
+    branches: [chatgpt/ym-proof-frontier-v13-20260916]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  exact-calculations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install numerical dependency
+        run: python -m pip install numpy==2.1.3
+      - name: Run fail-closed exact calculations
+        run: python data_room/scripts/ym_proof_frontier_v13/run_v13.py
+      - name: Upload required results
+        uses: actions/upload-artifact@v4
+        with:
+          name: ym-proof-frontier-v13-checked
+          if-no-files-found: error
+          path: |
+            data_room/scripts/ym_proof_frontier_v13/V13_EXECUTION_MANIFEST.json
+            data_room/scripts/ym_proof_frontier_v13/*.log
+            data_room/scripts/ym_proof_frontier_v13/moments/MOMENT_EXECUTION_CERTIFICATE.json
+            data_room/scripts/ym_proof_frontier_v13/moments/workspace/proof_frontier_v13/moments/*.json
+            data_room/scripts/ym_proof_frontier_v13/bounds/*.json
+            data_room/scripts/ym_proof_frontier_v13/bounds/uniformity/*.json

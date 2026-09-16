@@ -1,0 +1,25 @@
+name: Target-coupling Wilson V14
+on:
+  push:
+    branches: [chatgpt/ym-target-wilson-v14-20260916]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  exact-target-factors:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Execute and independently verify every coefficient
+        run: python data_room/scripts/ym_target_wilson_v14/run_all.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ym-target-wilson-v14
+          if-no-files-found: error
+          path: |
+            data_room/scripts/ym_target_wilson_v14/*.json
+            data_room/scripts/ym_target_wilson_v14/*.json.gz

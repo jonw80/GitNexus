@@ -1,0 +1,38 @@
+name: Coupled Haar compression V16 parallel
+on:
+  push:
+    branches: [chatgpt/ym-coupled-gram-v16-20260916]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  certified-branch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        task: [compression, network, partition]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Retrieve pinned full squared spatial factor
+        if: matrix.task == 'compression'
+        uses: actions/download-artifact@v4
+        with:
+          name: ym-spatial-gram-v15
+          run-id: 35100892977
+          github-token: ${{ github.token }}
+          path: data_room/scripts/ym_coupled_gram_v16/inputs
+      - name: Execute scoped calculation and independent verifier
+        run: python data_room/scripts/ym_coupled_gram_v16/run_branch.py ${{ matrix.task }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ym-coupled-gram-v16-${{ matrix.task }}
+          if-no-files-found: error
+          path: |
+            data_room/scripts/ym_coupled_gram_v16/${{ matrix.task }}/*.json
+            data_room/scripts/ym_coupled_gram_v16/${{ matrix.task }}/*.gz

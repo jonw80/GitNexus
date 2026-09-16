@@ -1,0 +1,25 @@
+name: Spatial Gram contractions V15
+on:
+  push:
+    branches: [chatgpt/ym-spatial-gram-v15-20260916]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  exact-gram:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Calculate and independently verify exact partial contractions
+        run: python data_room/scripts/ym_spatial_gram_v15/run_all.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ym-spatial-gram-v15
+          if-no-files-found: error
+          path: |
+            data_room/scripts/ym_spatial_gram_v15/*.json
+            data_room/scripts/ym_spatial_gram_v15/*.gz

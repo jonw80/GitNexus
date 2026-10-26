@@ -1,0 +1,84 @@
+name: Independent mass-free flux scan
+
+on:
+  push:
+    branches:
+      - 'claude/mass-free-flux-scan-20261026'
+    paths:
+      - 'independent_runs/flux_scan/**'
+      - '.github/workflows/mass-free-flux-scan.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Scan shard ${{ matrix.shard }} of 8
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned dependencies
+        run: pip install numpy==2.1.3 mpmath==1.3.0
+      - name: Run shard
+        working-directory: independent_runs/flux_scan
+        run: python mass_free_scan.py --shard ${{ matrix.shard }} --nshards 8 --procs 2 --grid 6000 --out shard_${{ matrix.shard }}.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shard-${{ matrix.shard }}
+          path: independent_runs/flux_scan/shard_${{ matrix.shard }}.json
+
+  printed:
+    name: Printed vectors at 30 digits
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned dependencies
+        run: pip install mpmath==1.3.0
+      - name: Check the printed vectors with mpmath
+        working-directory: independent_runs/flux_scan
+        run: python verify_printed.py | tee verify_printed.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verify-printed
+          path: independent_runs/flux_scan/verify_printed.txt
+
+  merge:
+    name: Merge shards and apply the hierarchy clause
+    needs: [scan, printed]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned dependencies
+        run: pip install numpy==2.1.3 mpmath==1.3.0
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: shard-*
+          path: shards
+          merge-multiple: true
+      - name: Merge and run clause (iv)
+        working-directory: independent_runs/flux_scan
+        run: |
+          python merge_shards.py ../../shards merged_results.json
+          python census_iv.py merged_results.json census_iv.json | tee census_iv.txt
+          { echo '```'; cat census_iv.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: merged-results
+          path: |
+            independent_runs/flux_scan/merged_results.json
+            independent_runs/flux_scan/census_iv.json
+            independent_runs/flux_scan/census_iv.txt

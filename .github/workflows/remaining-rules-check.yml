@@ -1,0 +1,40 @@
+name: Remaining mass-free definitions
+
+on:
+  push:
+    branches:
+      - 'claude/mass-free-flux-scan-20261026'
+    paths:
+      - 'independent_runs/remaining_rules/**'
+      - '.github/workflows/remaining-rules-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: R(z) formula and dominance predicate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pinned dependencies
+        run: pip install numpy==2.1.3 mpmath==1.3.0
+      - name: Fetch the repo coupling engine for the cross-check
+        shell: bash
+        run: |
+          git fetch --depth=1 origin chatgpt/ugct-101moduli-source-only
+          git show FETCH_HEAD:data_room/scripts/fermat_101_period_derivative.py > independent_runs/remaining_rules/engine.py
+      - name: Run both tests
+        shell: bash
+        working-directory: independent_runs/remaining_rules
+        run: |
+          python remaining_rules_check.py engine.py | tee remaining_rules.txt
+          { echo '```'; cat remaining_rules.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: remaining-rules
+          path: independent_runs/remaining_rules/remaining_rules.txt

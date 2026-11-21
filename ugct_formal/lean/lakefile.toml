@@ -1,0 +1,18 @@
+name = "ugct"
+version = "0.1.0"
+keywords = ["math"]
+defaultTargets = ["Ugct"]
+
+[leanOptions]
+pp.unicode.fun = true # pretty-prints `fun a ↦ b`
+relaxedAutoImplicit = false
+weak.linter.mathlibStandardSet = false  # style linters off; kernel checking is unaffected
+maxSynthPendingDepth = 3
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+rev = "v4.37.0-rc1"
+
+[[lean_lib]]
+name = "Ugct"

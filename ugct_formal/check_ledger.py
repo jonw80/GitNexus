@@ -15,7 +15,8 @@ reports.  For those nodes the dependency on postulates and conjectures is comput
 not typed by hand.
 
 Rules (exit code 1 if any is broken):
-  R0  ids unique, every dependency exists, no cycles
+  R0  ids unique, every dependency exists, no cycles; a 'claimed' label is one of the kinds;
+      every entry of 'gates_failed' is one of G1-G10
   R1  a PROVEN node depends only on PROVEN or IMPORT nodes
   R1b a CONDITIONAL node depends only on PROVEN, IMPORT, CONJECTURE or CONDITIONAL nodes,
       and on at least one CONJECTURE
@@ -37,6 +38,23 @@ from collections import Counter
 KINDS = ["PROVEN", "IMPORT", "CONJECTURE", "CONDITIONAL", "POSTULATE", "INPUT", "DERIVED",
          "OBSERVATION", "FAILS", "OPEN", "UNAUDITED"]
 BAD_UPSTREAM = {"FAILS", "OPEN", "OBSERVATION", "UNAUDITED"}
+GATES = [f"G{i}" for i in range(1, 11)]
+USAGE = "usage: check_ledger.py [derivation_ledger.json] [--lean report.txt]"
+
+
+def parse_args(argv):
+    """Return (ledger path, Lean report path or None); exit with a usage message otherwise."""
+    args = list(argv[1:])
+    lean_path = None
+    if "--lean" in args:
+        i = args.index("--lean")
+        if i + 1 >= len(args) or args[i + 1].startswith("--"):
+            sys.exit(USAGE + "\n--lean needs the path of the Lean report")
+        lean_path = args[i + 1]
+        del args[i:i + 2]
+    if len(args) > 1 or any(a.startswith("--") for a in args):
+        sys.exit(USAGE)
+    return (args[0] if args else "derivation_ledger.json"), lean_path
 
 
 def parse_lean_report(path):
@@ -51,8 +69,7 @@ def parse_lean_report(path):
 
 
 def main(argv):
-    path = argv[1] if len(argv) > 1 and not argv[1].startswith("--") else "derivation_ledger.json"
-    lean_path = argv[argv.index("--lean") + 1] if "--lean" in argv else None
+    path, lean_path = parse_args(argv)
     with open(path, encoding="utf-8") as fh:
         ledger = json.load(fh)
     nodes = ledger["nodes"]
@@ -66,6 +83,11 @@ def main(argv):
     for n in nodes:
         if n["kind"] not in KINDS:
             errors.append(f"R0 {n['id']}: unknown kind {n['kind']}")
+        if "claimed" in n and n["claimed"] not in KINDS:
+            errors.append(f"R0 {n['id']}: 'claimed' must be one of the kinds, not {n['claimed']!r}")
+        for g in n.get("gates_failed", []):
+            if g not in GATES:
+                errors.append(f"R0 {n['id']}: unknown gate {g!r} (gates are G1-G10)")
         for d in n["depends_on"]:
             if d not in by:
                 errors.append(f"R0 {n['id']}: unknown dependency {d}")
@@ -103,7 +125,7 @@ def main(argv):
             errors.append(f"R2 {n['id']}: {n['kind']} node has dependencies")
         if n["kind"] == "DERIVED" and kinds & BAD_UPSTREAM:
             errors.append(f"R3 {n['id']}: DERIVED node rests on {sorted(kinds & BAD_UPSTREAM)}")
-        if n.get("claimed") and n["kind"] in ("OBSERVATION", "FAILS", "OPEN") and not n.get("action"):
+        if "claimed" in n and n["kind"] in ("OBSERVATION", "FAILS", "OPEN") and not n.get("action"):
             errors.append(f"R4 {n['id']}: no action named")
 
     lean_rows = []
@@ -144,7 +166,7 @@ def main(argv):
 
     claims = [n for n in nodes if "claimed" in n]
     print(f"\nmanuscript claims in the ledger: {len(claims)}")
-    moved = Counter((n["claimed"], n["kind"]) for n in claims)
+    moved = Counter((str(n["claimed"]), n["kind"]) for n in claims)
     for (was, now), c in sorted(moved.items()):
         print(f"  claimed {was:<8} -> audited {now:<12}{c:>3}")
 
@@ -177,8 +199,10 @@ def main(argv):
     if lean_path:
         print(f"  nodes backed by Lean theorems        {len({r[0] for r in lean_rows})}")
 
-    gate_hits = Counter(g for n in claims for g in n.get("gates_failed", []))
-    print("\ngate failures across claims:", ", ".join(f"{g}:{c}" for g, c in sorted(gate_hits.items(), key=lambda t: int(t[0][1:]))))
+    gate_hits = Counter(str(g) for n in claims for g in n.get("gates_failed", []))
+    order = {g: k for k, g in enumerate(GATES)}
+    print("\ngate failures across claims:", ", ".join(
+        f"{g}:{c}" for g, c in sorted(gate_hits.items(), key=lambda t: (order.get(t[0], len(GATES)), t[0]))))
 
     if errors:
         print("\nLEDGER INCONSISTENT")

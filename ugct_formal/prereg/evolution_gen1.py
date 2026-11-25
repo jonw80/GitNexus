@@ -26,11 +26,16 @@ def weil(full):                                  # Weil operator value i^(p-q) o
     return 1j ** (5 - 2 * s)
 
 
-def minimum(Gram, R=4):
-    best = np.inf
-    red = np.array(pari.qflllgram(pari.matrix(4, 4, [float(x) for x in Gram.flatten()])).mattranspose().tolist(), dtype=float).T \
-        if False else None
-    for v in itertools.product(range(-R, R + 1), repeat=4):
+def minimum(Gram):
+    """Minimum of x^T Gram x over nonzero integer x, by complete enumeration. The smallest diagonal entry B is
+    attained by a basis vector, and every x with x^T Gram x <= B satisfies x_i^2 <= B (Gram^-1)_ii, so the box
+    with those radii holds every vector that can be shorter. (Floating point; evolution_gen3.py part E certifies
+    the minima exactly.)"""
+    B = float(min(np.diag(Gram)))
+    Gi = np.linalg.inv(Gram)
+    radii = [int(np.floor(np.sqrt(B * Gi[i, i] * (1 + 1e-9)))) for i in range(len(Gram))]
+    best = B
+    for v in itertools.product(*[range(-r, r + 1) for r in radii]):
         if any(v):
             x = np.array(v, dtype=float)
             best = min(best, x @ Gram @ x)

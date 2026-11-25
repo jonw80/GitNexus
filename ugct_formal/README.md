@@ -45,6 +45,7 @@ assumed, and what was fitted — checked by machine on every commit
     python3 check_ledger.py derivation_ledger.json --lean lean/report.txt
     python3 fermat_point_couplings.py 40
     python3 block_lattice.py
-    python3 prereg/test_exact_forms.py && python3 prereg/test_evolution_gen2_checks.py
+    python3 prereg/test_exact_forms.py && python3 prereg/test_evolution_gen1_checks.py
+    python3 prereg/test_evolution_gen2_checks.py
     python3 prereg/test_evolution_gen3_checks.py
     python3 prereg/evolution_gen2.py && python3 prereg/evolution_gen3.py

@@ -11,3 +11,10 @@ A  bounds on the Weil systole: 0.049243 <= min Q <= 30.776835
    weakest coupling of any charge of X5: 0.0325 <= alpha^-1_max <= 20.3075   (target 137.035999177): excluded
 B  (1,1,1,1,1) block with its principal form: min Q = 1.231073 -> alpha^-1 = 0.812299
 C  grades of all squared chiral structure constants (l1 + l2 = l3 <= 3): {0}
+
+Notes:
+- Review of PR #2: minimum() searched the fixed box [-4,4]^4, so a shortest vector with a larger coordinate could
+  be missed and the printed lower bound was not guaranteed. It now enumerates the complete box x_i^2 <= B (G^-1)_ii,
+  with B the smallest diagonal entry, which holds every vector that can be shorter. Rerun: output identical to the
+  lines above (the minima lie inside the old box), exit 0. test_evolution_gen1_checks.py checks a form whose only
+  minimal vector, (-7,1,0,0), lies outside [-4,4]^4. The exact certificate of these minima is evolution_gen3.py part E.

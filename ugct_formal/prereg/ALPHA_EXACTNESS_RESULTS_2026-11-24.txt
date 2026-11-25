@@ -1,0 +1,13 @@
+L = 137.035982241257;  delta_obs = 1.69357e-5 +- 2.1e-8
+reading                                                          delta   delta - delta_obs
+A  alpha(0) itself                                                 0.0       -806.5 sigma
+B  MS-bar alpha at mu = m_e (two loops)                    0.000693165      3.22e+4 sigma
+C  Q = alpha m_e (Bohr momentum)                            1.13005e-6       -752.7 sigma
+C  Q = m_e                                                   0.0192358     9.152e+5 sigma
+C  Q = m_mu                                                   0.973887     4.637e+7 sigma
+C  Q = M_Pl (leptons only; the '19 decades' argument)          29.4114     1.401e+9 sigma
+D  L/pi exponents (3, -1, 0, 0): m1 = m4? False; m2 = m3? False; grade 1 -> not algebraic if K1 holds (Lean T9), so Law 1 is not 4 pi x an algebraic number
+E  family size 1323; terms within 1 sigma: 1
+     (1) alpha^2 pi^-1 = 1.6950437e-5   0.7 sigma
+   chance that a random target in [delta_obs/2, 2 delta_obs] has >= 1 hit: 0.220 (128 family values in that range)
+   alpha^-1 = L + alpha^2/pi solved: 137.0359991917  vs CODATA 2022 137.035999177 -> 0.7 sigma;  equivalent scale sqrt(15) alpha m_e = 14.44 keV

@@ -72,3 +72,21 @@ jobs:
       - name: Recompute and compare (fails on any mismatch)
         working-directory: ugct_formal
         run: python3 -I fermat_point_couplings.py 40
+
+  block-lattice:
+    name: H_3(X_5, Z) and its block lattices from Pham's vanishing cycles
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install numpy and cypari2
+        run: pip install numpy cypari2
+
+      - name: Build the lattice and check it (fails on any mismatch)
+        working-directory: ugct_formal
+        run: python3 -I block_lattice.py

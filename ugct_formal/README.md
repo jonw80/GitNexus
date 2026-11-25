@@ -7,7 +7,7 @@ assumed, and what was fitted — checked by machine on every commit
 | Path | What it is |
 |---|---|
 | `lean/` | Lean 4 + Mathlib proofs. `lean/report.txt` lists, for each theorem, every axiom it rests on (`#print axioms`). |
-| `derivation_ledger.json` | The derivation graph: 68 nodes (postulates, measured inputs, theorems, imports, claims), one per line. |
+| `derivation_ledger.json` | The derivation graph: 70 nodes (postulates, measured inputs, theorems, imports, claims), one per line. |
 | `check_ledger.py` | Ledger rules R0–R5. R5 compares every node's label with the Lean axiom report. |
 | `fermat_point_couplings.py` | Weil–Petersson metric and normalized Yukawa coupling of the Fermat quintic, recomputed from the Picard–Fuchs equation alone. |
 | `block_lattice.py` | H₃(X₅, ℤ) built from Pham's vanishing cycles, and the integral lattice of each character block (ledger T11). |

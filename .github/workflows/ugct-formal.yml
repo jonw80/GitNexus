@@ -91,10 +91,17 @@ jobs:
         working-directory: ugct_formal
         run: python3 -I block_lattice.py
 
-      - name: Test the pass/fail logic of the generation-3 checks
+      - name: Test the exact arithmetic and the pass/fail logic of the generation-2 and -3 checks
         working-directory: ugct_formal
-        run: python3 -I prereg/test_evolution_gen3_checks.py
+        run: |
+          python3 -I prereg/test_exact_forms.py
+          python3 -I prereg/test_evolution_gen2_checks.py
+          python3 -I prereg/test_evolution_gen3_checks.py
 
-      - name: Generation-3 checks, T14 certificate, T16, T17 (fails if any check fails)
+      - name: Generation-2 checks, T15 (fails if any check fails)
+        working-directory: ugct_formal
+        run: python3 -I prereg/evolution_gen2.py
+
+      - name: Generation-3 checks, exact T14 certificate, T16, T17 (fails if any check fails)
         working-directory: ugct_formal
         run: python3 -I prereg/evolution_gen3.py

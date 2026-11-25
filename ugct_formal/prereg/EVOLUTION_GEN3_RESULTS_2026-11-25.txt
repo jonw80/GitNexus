@@ -21,7 +21,7 @@ G3-3  g_s = 1.1547005: Laplace integral / Gamma(6/5) = 1.18840163864 = g_s^(6/5)
       ratio of the two fixed-point values: 1.1884016
 PARI stack size set to 2000000000 bytes, maximum size set to 2000003072
 H_3(F): rank 256; rank S = 204; radical rank 52; nonzero elementary divisors: [1] x 204
-E     certificate over 51 blocks: ((vectors below exact(1-1e-6), minimal pairs, norms = exact to 1e-12) for dual, block): {((0, 5, True), (0, 5, True)): 51}
+E     exact certificate over 51 blocks ((pairs below the bound, pairs at the bound) for dual, block): {((0, 5), (0, 5)): 51}
       certified: every nonzero charge has Q >= (2/125) tan 72 = 0.0492429; alpha^-1 <= 20.3075; block minimum 10 tan 72 = 30.7768
 exit 0
 
@@ -36,3 +36,10 @@ Notes (checking code only; the criteria are unchanged from the pre-registration,
   with status 1 if any fails; before, it printed the certificate line unconditionally. Rerun: output identical to
   the lines above, exit 0. A mutant with the bound raised by 1% prints FAILED and exits 1. The pass/fail logic is
   unit-tested by test_evolution_gen3_checks.py, and both run in CI.
+- Second review of PR #2: part E used floating-point forms (qfminim with flag 2) and tolerances, so it was not a
+  proof. It now builds every block's Hodge form exactly in Q(zeta_20) (exact_forms.py, which checks that M1 satisfies
+  Phi_5 and has order 5, that the Weil operator is real, commutes with M1 and squares to -1, and that E C is symmetric
+  and positive definite), enumerates every vector of norm up to the bound (box from v_i^2 <= m (G^-1)_ii, with
+  rigorous upper bounds) and decides each comparison exactly; signs come from interval arithmetic. Result on all
+  51 blocks, for the dual and the block form: no pair below the bound, 5 pairs at it (as before). A mutant with the
+  dual bound raised by 1e-30 prints FAILED and exits 1. Unit tests: test_exact_forms.py. The G3 lines are unchanged.

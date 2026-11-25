@@ -1,6 +1,7 @@
 """Evolutionary search, generation 3 (G3-1, G3-2, G3-3, E), as pre-registered in
 EVOLUTION_GEN3_PREREG_2026-11-25.md (commit 465bbf0).
-python3 -I evolution_gen3.py   (mpmath, numpy, cypari2; E reuses the lattice of ../block_lattice.py)
+python3 -I evolution_gen3.py   (mpmath, numpy, cypari2; E reuses the lattice of ../block_lattice.py and the exact
+arithmetic of exact_forms.py; it exits with status 1 if any pre-registered check fails)
 """
 import itertools
 import os
@@ -9,12 +10,12 @@ from mpmath import mp, mpf, pi, gamma, sin, sqrt, quad, exp, inf, tan, findpoly,
 
 def certificate_failures(cert, n_blocks):
     """Part E pass criterion (pre-registration 465bbf0): on every block, for the dual form and the block form,
-    no vector lies below the exact minimum, at least one minimal pair exists, and the minimal norms are exact."""
+    no vector lies below the exact minimum and at least one pair of vectors attains it (exact arithmetic)."""
     bad = [] if sum(cert.values()) == n_blocks else [f"{sum(cert.values())} of {n_blocks} blocks certified"]
     for key, count in cert.items():
-        for name, (below, pairs, exact) in zip(("dual", "block"), key):
-            if below or pairs < 1 or not exact:
-                bad.append(f"{count} block(s), {name} form: {below} vectors below, {pairs} minimal pairs, exact {exact}")
+        for name, (below, pairs) in zip(("dual", "block"), key):
+            if below or pairs < 1:
+                bad.append(f"{count} block(s), {name} form: {below} pairs below the bound, {pairs} pairs at it")
     return bad
 
 
@@ -90,46 +91,30 @@ for gs in (mpf(1), 2 / sqrt(3)):
     lap = quad(lambda t: exp(-t / gs) * t ** (mpf(6) / 5 - 1), [0, 1, inf]) / gamma(mpf(6) / 5)
     fail_g3 += [] if abs(lap - gs ** (mpf(6) / 5)) < mpf(10) ** -30 else [f"Laplace integral at g_s = {nstr(gs, 8)}"]
 
-# E: Fincke-Pohst certificate of the magnitude no-go on all 51 blocks
+# E: exact certificate of the magnitude no-go on all 51 blocks (arithmetic in Q(zeta_20), see exact_forms.py)
+import importlib.util
 import numpy as np
-src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "evolution_gen1.py")).read()
+here = os.path.dirname(os.path.abspath(__file__))
+src = open(os.path.join(here, "evolution_gen1.py")).read()
 exec(src.split("orbits, seen = [], set()")[0])
-mu_exact, m_exact = float(mpf(2) / 125 * tan(2 * pi / 5)), float(10 * tan(2 * pi / 5))
+spec = importlib.util.spec_from_file_location("exact_forms", os.path.join(here, "exact_forms.py"))
+xf = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(xf)
+mu_exact, m_exact = xf.TAN72 * xf.Fraction(2, 125), xf.TAN72 * 10          # (2/125) tan 72 deg, 10 tan 72 deg
 orbits, seen = [], set()
 for b in itertools.product(range(1, 5), repeat=4):
     if sum(b) % 5 and b not in seen:
         seen.update(tuple((t * x) % 5 for x in b) for t in range(1, 5))
         orbits.append(b)
-cert, definite = Counter(), []
+cert, errors = Counter(), []
 for a in orbits:
-    B = block_basis(a)
-    E = B.T @ S @ B
-    Ei = np.linalg.inv(E.astype(float))
-    M1 = Ei @ (B.T @ S @ T[0] @ B)
-    eig = [((t * a[0]) % 5, t) for t in range(1, 5)]
-    C = np.zeros((4, 4), dtype=complex)
-    for e, t in eig:
-        Pt = np.eye(4, dtype=complex)
-        for e2, _ in eig:
-            if e2 != e:
-                Pt = Pt @ (M1 - z ** e2 * np.eye(4)) / (z ** e - z ** e2)
-        C += weil(tuple([(-t * sum(a)) % 5] + [(t * x) % 5 for x in a])) * Pt
-    Gq = E @ C.real
-    Gq = (Gq + Gq.T) / 2
-    Gq = Gq if np.linalg.eigvalsh(Gq).min() > 0 else -Gq
-    definite.append(bool(np.linalg.eigvalsh(Gq).min() > 0))
-    Gd = Ei @ Gq @ Ei.T
-    out = []
-    for M, exact in ((Gd, mu_exact), (Gq, m_exact)):         # flag 2 widens the bound by a relative slack ~1e-9
-        Mp = pari.matrix(4, 4, [float(x) for x in M.flatten()])
-        below = int(pari.qfminim(Mp, exact * (1 - 1e-6), 0, 2)[0])
-        at = pari.qfminim(Mp, exact * (1 + 1e-6), 100, 2)
-        V = np.array([[float(at[2][i, j]) for j in range(at[2].ncols())] for i in range(4)])
-        err = max((abs(float(v @ M @ v) / exact - 1) for v in V.T), default=float("inf"))
-        out.append((below, int(at[0]) // 2, err < 1e-12))
-    cert[tuple(out)] += 1
-print(f"E     certificate over {len(orbits)} blocks: ((vectors below exact(1-1e-6), minimal pairs, norms = exact to 1e-12) for dual, block): {dict(cert)}")
+    try:                                   # exact Hodge forms; raises if any structural check fails
+        Q, Qd, _ = xf.block_forms(block_basis(a), S, T[0], a)
+        cert[(xf.certify_min(Qd, mu_exact)[:2], xf.certify_min(Q, m_exact)[:2])] += 1
+    except (AssertionError, ValueError, ArithmeticError) as exc:
+        errors.append(f"block {a}: {exc}")
+print(f"E     exact certificate over {len(orbits)} blocks ((pairs below the bound, pairs at the bound) for dual, block):"
+      f" {dict(cert)}")
 # Part E's pass criterion, then the verdict on every check (status 1 if any failed).
-fail = certificate_failures(cert, 51) + ([] if len(orbits) == 51 else [f"{len(orbits)} blocks, not 51"])
-fail += [] if all(definite) else [f"{definite.count(False)} blocks with an indefinite Hodge form"]
-finish(fail_g3 + fail, mu_exact, m_exact)
+fail = errors + certificate_failures(cert, 51) + ([] if len(orbits) == 51 else [f"{len(orbits)} blocks, not 51"])
+finish(fail_g3 + fail, float(mu_exact.interval(30).mid), float(m_exact.interval(30).mid))

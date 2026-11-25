@@ -15,12 +15,11 @@ ns = {}
 exec(compile(ast.Module(body=funcs, type_ignores=[]), path, "exec"), ns)
 certificate_failures, finish = ns["certificate_failures"], ns["finish"]
 
-ok = ((0, 5, True), (0, 5, True))
+ok = ((0, 5), (0, 5))
 assert certificate_failures(Counter({ok: 51}), 51) == []
-assert certificate_failures(Counter({ok: 50}), 51)                                      # a block missing
-assert certificate_failures(Counter({ok: 50, ((1, 5, True), (0, 5, True)): 1}), 51)    # a dual vector below the bound
-assert certificate_failures(Counter({ok: 50, ((0, 5, True), (0, 0, True)): 1}), 51)    # no minimal vector found
-assert certificate_failures(Counter({ok: 50, ((0, 5, False), (0, 5, True)): 1}), 51)   # minimum not the exact value
+assert certificate_failures(Counter({ok: 50}), 51)                                  # a block missing
+assert certificate_failures(Counter({ok: 50, ((1, 5), (0, 5)): 1}), 51)            # a dual vector below the bound
+assert certificate_failures(Counter({ok: 50, ((0, 5), (0, 0)): 1}), 51)            # bound not attained
 
 buf = io.StringIO()
 with contextlib.redirect_stdout(buf):

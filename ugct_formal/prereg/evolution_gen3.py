@@ -7,6 +7,26 @@ import os
 from collections import Counter
 from mpmath import mp, mpf, pi, gamma, sin, sqrt, quad, exp, inf, tan, findpoly, nstr
 
+def certificate_failures(cert, n_blocks):
+    """Part E pass criterion (pre-registration 465bbf0): on every block, for the dual form and the block form,
+    no vector lies below the exact minimum, at least one minimal pair exists, and the minimal norms are exact."""
+    bad = [] if sum(cert.values()) == n_blocks else [f"{sum(cert.values())} of {n_blocks} blocks certified"]
+    for key, count in cert.items():
+        for name, (below, pairs, exact) in zip(("dual", "block"), key):
+            if below or pairs < 1 or not exact:
+                bad.append(f"{count} block(s), {name} form: {below} vectors below, {pairs} minimal pairs, exact {exact}")
+    return bad
+
+
+def finish(failures, mu, m):
+    """Exit with status 1 if any pre-registered check failed; print the certificate only if all passed."""
+    if failures:
+        print("FAILED:", "; ".join(failures))
+        raise SystemExit(1)
+    print(f"      certified: every nonzero charge has Q >= (2/125) tan 72 = {mu:.7f}; alpha^-1 <= {1 / mu:.4f};"
+          f" block minimum 10 tan 72 = {m:.4f}")
+
+
 mp.dps = 50
 L = pi * gamma(mpf(1) / 5) ** 3 / gamma(mpf(2) / 5)
 G = lambda k: gamma(mpf(k) / 5)
@@ -51,6 +71,25 @@ for gs in (mpf(1), 2 / sqrt(3)):
     print(f"G3-3  g_s = {nstr(gs, 8)}: Laplace integral / Gamma(6/5) = {nstr(lap / gamma(mpf(6) / 5), 12)} = g_s^(6/5)")
 print("      ratio of the two fixed-point values:", nstr((2 / sqrt(3)) ** (mpf(6) / 5), 8))
 
+# Pre-registered claims of G3-1 to G3-3, checked before part E redefines names such as L and r;
+# the script exits with status 1 at the end if any check fails.
+fail_g3 = []
+for name, res in (("N_Y = 15 sqrt5 Gamma(6/5)", N_Y - 15 * sqrt(5) * gamma(mpf(6) / 5)),
+                  ("Law 1 = N_Y P(omega_Y)/(12 pi)", L - N_Y * P_omega / (12 * pi)),
+                  ("Law 1 = sin(2pi/5) 5^4 E4", L - sin(2 * pi / 5) * 5 ** 4 * E4),
+                  ("5 r^4 - 20 r^2 - 16 = 0", 5 * r ** 4 - 20 * r ** 2 - 16)):
+    fail_g3 += [] if abs(res) < mpf(10) ** -40 else [f"{name}: residual {nstr(res, 5)}"]
+for k in (1, 2, 3, 4):
+    zk = abs((mp.e ** (2j * pi * k / 5) - 1) * G(k) / 5) / sqrt(g(k))
+    fail_g3 += [] if abs(zk / sqrt(pi) - 2 * sqrt(sin(k * pi / 5)) / 5) < mpf(10) ** -40 else [f"thimble charge k = {k} not Gamma-free"]
+fail_g3 += [] if realized[5][0] == 0 else ["a 5-factor state has Law 1's Gamma-content"]
+fail_g3 += [] if realized[4][0] == 1 else [f"{realized[4][0]} 4-factor states, not 1"]
+fail_g3 += [f"{c} projected {n}-factor states" for n, (_, c, _) in realized.items() if c]
+fail_g3 += [] if grades == {0} else [f"projected grades {grades}"]
+for gs in (mpf(1), 2 / sqrt(3)):
+    lap = quad(lambda t: exp(-t / gs) * t ** (mpf(6) / 5 - 1), [0, 1, inf]) / gamma(mpf(6) / 5)
+    fail_g3 += [] if abs(lap - gs ** (mpf(6) / 5)) < mpf(10) ** -30 else [f"Laplace integral at g_s = {nstr(gs, 8)}"]
+
 # E: Fincke-Pohst certificate of the magnitude no-go on all 51 blocks
 import numpy as np
 src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "evolution_gen1.py")).read()
@@ -61,7 +100,7 @@ for b in itertools.product(range(1, 5), repeat=4):
     if sum(b) % 5 and b not in seen:
         seen.update(tuple((t * x) % 5 for x in b) for t in range(1, 5))
         orbits.append(b)
-cert = Counter()
+cert, definite = Counter(), []
 for a in orbits:
     B = block_basis(a)
     E = B.T @ S @ B
@@ -78,6 +117,7 @@ for a in orbits:
     Gq = E @ C.real
     Gq = (Gq + Gq.T) / 2
     Gq = Gq if np.linalg.eigvalsh(Gq).min() > 0 else -Gq
+    definite.append(bool(np.linalg.eigvalsh(Gq).min() > 0))
     Gd = Ei @ Gq @ Ei.T
     out = []
     for M, exact in ((Gd, mu_exact), (Gq, m_exact)):         # flag 2 widens the bound by a relative slack ~1e-9
@@ -85,9 +125,11 @@ for a in orbits:
         below = int(pari.qfminim(Mp, exact * (1 - 1e-6), 0, 2)[0])
         at = pari.qfminim(Mp, exact * (1 + 1e-6), 100, 2)
         V = np.array([[float(at[2][i, j]) for j in range(at[2].ncols())] for i in range(4)])
-        err = max(abs(float(v @ M @ v) / exact - 1) for v in V.T)
+        err = max((abs(float(v @ M @ v) / exact - 1) for v in V.T), default=float("inf"))
         out.append((below, int(at[0]) // 2, err < 1e-12))
     cert[tuple(out)] += 1
 print(f"E     certificate over {len(orbits)} blocks: ((vectors below exact(1-1e-6), minimal pairs, norms = exact to 1e-12) for dual, block): {dict(cert)}")
-print(f"      certified: every nonzero charge has Q >= (2/125) tan 72 = {mu_exact:.7f}; alpha^-1 <= {1 / mu_exact:.4f};"
-      f" block minimum 10 tan 72 = {m_exact:.4f}")
+# Part E's pass criterion, then the verdict on every check (status 1 if any failed).
+fail = certificate_failures(cert, 51) + ([] if len(orbits) == 51 else [f"{len(orbits)} blocks, not 51"])
+fail += [] if all(definite) else [f"{definite.count(False)} blocks with an indefinite Hodge form"]
+finish(fail_g3 + fail, mu_exact, m_exact)

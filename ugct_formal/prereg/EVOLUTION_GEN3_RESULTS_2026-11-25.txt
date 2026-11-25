@@ -31,3 +31,8 @@ Notes (checking code only; the criteria are unchanged from the pre-registration,
   recomputes the norms of the returned minimal vectors, which agree with the exact values to 1e-15.
 - G3-2 (i): findpoly (degree 8, coefficients up to 1e6) missed (2/5) sqrt(sin(k pi/5)), whose minimal polynomial
   390625 x^8 - 12500 x^4 + 80 is within range; the check now compares with that closed form directly.
+- After the run (review of PR #2): the script now checks every pre-registered claim (the part E criterion on all
+  51 blocks, definiteness of each Hodge form, the T16 identities, the T17 counts, the G3-3 integrals) and exits
+  with status 1 if any fails; before, it printed the certificate line unconditionally. Rerun: output identical to
+  the lines above, exit 0. A mutant with the bound raised by 1% prints FAILED and exits 1. The pass/fail logic is
+  unit-tested by test_evolution_gen3_checks.py, and both run in CI.

@@ -30,6 +30,9 @@ assumed, and what was fitted — checked by machine on every commit
 5. `block_lattice.py`: builds H₃(X₅, ℤ) from Pham's vanishing cycles and checks that it is
    unimodular of rank 204, that the radical is the monodromy-fixed part, and that the
    (1,1,1,3,4) block carries 25 times the principal polarization used for T7.
+6. `prereg/evolution_gen3.py`: the generation-3 checks behind T14, T16 and T17, including the
+   Fincke–Pohst certificate that every charge of H₃(X₅, ℤ) has α⁻¹ ≤ 20.31. It exits with status 1
+   if any pre-registered check fails; `prereg/test_evolution_gen3_checks.py` tests that pass/fail logic.
 
 ## Run locally
 
@@ -40,3 +43,4 @@ assumed, and what was fitted — checked by machine on every commit
     python3 check_ledger.py derivation_ledger.json --lean lean/report.txt
     python3 fermat_point_couplings.py 40
     python3 block_lattice.py
+    python3 prereg/test_evolution_gen3_checks.py && python3 prereg/evolution_gen3.py

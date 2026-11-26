@@ -15,21 +15,31 @@ corr = np.array(sorted({float(c.numerator) / c.denominator * a ** k * np.pi ** m
 sig = 2.1e-8
 
 
-def hits(t, signs=(1,)):
-    near = G[np.abs(G - t) < 1e-3 * t]
+def hits(t, signs, G, corr, sig):
+    """Number of (base g, sign s) with some correction c in corr such that |g + s c - t| <= sig.
+
+    corr must be sorted and positive. Every base within the largest correction (plus sig) of t is
+    considered. (Corrected 2026-11-26: the first version kept only bases within 0.1% of t, which drops
+    pairs whose correction is larger than 0.1% of t.)
+    """
+    near = G[np.abs(G - t) <= corr[-1] + sig]
     n = 0
-    for g in near:
-        for s in signs:
-            d = (t - g) * s                       # needed correction, with the sign allowed
-            if d > 0:
-                i = np.searchsorted(corr, d)
-                n += any(abs(corr[j] - d) <= sig for j in (i - 1, i) if 0 <= j < len(corr))
+    for s in signs:
+        d = (t - near) * s                        # needed correction, with the sign allowed
+        d = d[d > 0]
+        i = np.searchsorted(corr, d)
+        ok = np.zeros(len(d), dtype=bool)
+        for j in (i - 1, i):
+            inb = (j >= 0) & (j < len(corr))
+            ok[inb] |= np.abs(corr[j[inb]] - d[inb]) <= sig
+        n += int(ok.sum())
     return n
 
 
-print("actual target 137.035999177:", hits(137.035999177), "pair(s) with positive correction")
-rng = np.random.default_rng(1)
-T = 137.035999177 * (1 + rng.uniform(-1e-3, 1e-3, 4000))
-for signs, label in (((1,), "positive corrections"), ((1, -1), "either sign")):
-    h = np.array([hits(t, signs) for t in T])
-    print(f"random targets within 0.1% ({label}): P(at least one hit) = {np.mean(h > 0):.4f}, mean hits = {h.mean():.4f}")
+if __name__ == "__main__":
+    print("actual target 137.035999177:", hits(137.035999177, (1,), G, corr, sig), "pair(s) with positive correction")
+    rng = np.random.default_rng(1)
+    T = 137.035999177 * (1 + rng.uniform(-1e-3, 1e-3, 4000))
+    for signs, label in (((1,), "positive corrections"), ((1, -1), "either sign")):
+        h = np.array([hits(t, signs, G, corr, sig) for t in T])
+        print(f"random targets within 0.1% ({label}): P(at least one hit) = {np.mean(h > 0):.4f}, mean hits = {h.mean():.4f}")

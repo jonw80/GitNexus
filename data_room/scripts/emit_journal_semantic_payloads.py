@@ -45,17 +45,17 @@ ITEMS = {
  'ym_mass_gap_import': {
    'cert':'ym_mass_gap_import_certificate.json','proof':'ym_mass_gap_import_theorem.tex','source':'ym_import_inputs.json','script':'derive_ym_import_status.py','output':'gap_bound_form',
    'formula':'import status = companion hash plus OS, reflection positivity, RG convergence, and positive spectral gap checks',
-   'inputs':{'companion_volume_sha256':'2f7a9ebd43f3bf4a4f2b3c1d180eec64d9f8f0d9b658e6b8a2da7b506f7e5d49','checks':['os_axioms_verified','reflection_positivity_verified','rg_convergence_verified','spectral_gap_lower_bound_positive']},
+   'inputs':None,   # filled from data_room/primary/ym/ym_companion_status.json below
    'deps':[('Osterwalder-Schrader reconstruction','Osterwalder-Schrader Euclidean reconstruction theorem','reflection positivity, Euclidean invariance, symmetry, clustering','os_axioms_verified, reflection_positivity_verified','constructs physical Hilbert space and Hamiltonian')],
-   'lemmas':['OS reconstruction','RG stability','Gap transfer'],
-   'gaps':['Commit or cite the exact companion proof artifact matching the recorded hash.','Expose the GZYM reflection-positivity and RG estimates in a traversable theorem dependency map.','Verify that no mass-gap estimate is used upstream of the RG/polymer convergence proof.']},
+   'lemmas':[],
+   'gaps':None},   # filled from the status file below
  'proton_cp': {
    'cert':'proton_cp_lattice_certificate.json','proof':'proton_cp_lattice_extraction_theorem.tex','source':'proton_lattice_inputs.json','script':'derive_proton_cp_interval.py','output':'c_p_interval',
    'formula':'c_p interval = M_p interval divided by Lambda_QCD interval with continuum, finite-volume, and scale-setting controls',
-   'inputs':{'m_p_interval':[0.929,0.947],'lambda_qcd_interval':[0.231,0.244],'c_p_interval':[3.84,4.06],'trace_anomaly_fraction_interval':[0.872,0.914]},
+   'inputs':{'computation':'ugct_formal/proton_cp_published_lattice.py','scheme_of_Lambda_QCD':None},
    'deps':[('Continuum extrapolation control','standard lattice-QCD continuum/finite-volume extrapolation framework','ensemble metadata, spacing sequence, finite-volume controls','continuum_extrapolation_verified, finite_volume_error_bounded, scale_setting_verified','transfers lattice masses to continuum interval')],
-   'lemmas':['Continuum control','Finite-volume control','Scale setting'],
-   'gaps':['Replace compatibility intervals with an actual lattice ensemble snapshot and metadata table.','Provide continuum extrapolation fit coefficients and covariance/error budget.','Provide scale-setting source data and trace-anomaly extraction transcript.']},
+   'lemmas':[],
+   'gaps':['Declare the scheme and number of flavours of Lambda_QCD = M_Pl e^-44 (ledger C17); published lattice QCD then fixes c_p.','Give a source for the exponent 44 (chi(Y4)/24 = 127, ledger T23).']},
  'hadamard_divisor': {
    'cert':'hadamard_divisor_certificate.json','proof':'hadamard_divisor_identification_theorem.tex','source':'hadamard_divisor_inputs.json','script':'derive_hadamard_divisor_checks.py','output':'determinant_identity',
    'formula':'D(s)=det_reg(I+K_infty(s)) = E(s) Xi(s), with E zero-free on the transfer strip',
@@ -66,11 +66,34 @@ ITEMS = {
  'y4_tensor': {
    'cert':'y4_tensor_manifest.json','proof':'y4_tensor_reproduction_theorem.tex','source':'y4_tensor_inputs.json','script':'derive_y4_tensor_manifest.py','output':'nonzero_quadruple_intersections',
    'formula':'degree-four tensor export = Chow reduction of all divisor quadruple products modulo SR ideal, linear equivalences, proper transform, and pushforward rules',
-   'inputs':{'source_workflow_run_id':'26107286263','artifact_id':'7087903073','nonzero_quadruple_intersections':1847,'exceptional_reduction_rules':1509},
+   'inputs':{'built_by':'ugct_sage_y4/build_y4_tensor_manifest.py in ugct-sage-y4.yml'},
    'deps':[('Chow-ring reduction','Fulton intersection-theoretic pushforward and toric Chow quotient','resolved presentation, SR ideal, linear equivalences, proper transform','full_chamber_specific_tensor_verified, exceptional_reduction_rules','computes all degree-four intersection numbers')],
-   'lemmas':['Chow reduction','Exceptional-sector closure','Artifact reproducibility'],
-   'gaps':[]}
+   'lemmas':[],
+   'gaps':['The tensor is built only inside a Sage Y4 run; this workflow does not run Sage.']}
 }
+
+def _ym_from_status():
+    """The YM entry's inputs and gaps, read from the author's status file (they used to be typed in, including a
+    companion hash with no file behind it)."""
+    path = REPO / 'data_room' / 'primary' / 'ym' / 'ym_companion_status.json'
+    st = json.loads(path.read_text()) if path.exists() else {}
+    gates = st.get('gates') or {}
+    vol = st.get('companion_volume') or {}
+    inputs = {'status_file': str(path.relative_to(REPO)), 'companion_volume_file': vol.get('file'),
+              'gate_status': {g.get('flag'): g.get('status') for g in gates.values()}}
+    gaps = [f"{g.get('flag')}: {g.get('status')} ({'; '.join(g.get('references') or [])})" for g in gates.values()
+            if g.get('status') != 'proved']
+    if not vol.get('file'):
+        gaps.append('Commit the companion volume so that its hash can be computed.')
+    if not st.get('independent_verification'):
+        gaps.append('Record an independent verification of the companion volume.')
+    if not st:
+        gaps = ['The status file is missing.']
+    return inputs, gaps
+
+
+ITEMS['ym_mass_gap_import']['inputs'], ITEMS['ym_mass_gap_import']['gaps'] = _ym_from_status()
+
 
 def sha(path: Path) -> str:
     h=hashlib.sha256(); h.update(path.read_bytes()); return h.hexdigest()

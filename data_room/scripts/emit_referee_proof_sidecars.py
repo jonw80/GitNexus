@@ -232,92 +232,13 @@ flag, and the absence of GRH/LI imports.
 \end{proof}
 ''' + COMMON)
 
-write('ym_mass_gap_import_theorem.tex', r'''
-\section*{Yang--Mills Mass Gap: Companion Import Derivation}
-\subsection*{Fixed data and hypotheses}
-The QCD sector imports a companion-volume theorem identified by the recorded
-SHA-256 hash.  The import is permitted only if the certificate verifies the OS
-axioms, reflection positivity, RG convergence, and a positive spectral-gap
-lower bound.
+# ym_mass_gap_import_theorem.tex is written by build_ym_import_record.py from the author's status file and is
+# left as it is: the companion volume's own statements leave the four imported results conditional or open, so there
+# is no import theorem to expand here (until 2026-11-26 this wrote lemmas asserting OS reconstruction, RG stability
+# and a gap transfer).
 
-\subsection*{Definitions}
-Let \(S_{\rm YM}^{\rm eff}\) be the tuned finite-volume effective action on the
-renormalized trajectory.  OS reconstruction maps its Schwinger functions to a
-physical Hilbert space \(\mathcal H\) and Hamiltonian \(H\).  The imported gap
-statement is
-\[\operatorname{spec}(H)\cap(0,c_G\Lambda_{\rm QCD})=\varnothing.\]
-
-\subsection*{Lemmas used}
-\begin{lemma}[OS reconstruction]
-The imported Schwinger functions satisfy the OS axioms required to reconstruct
-\((\mathcal H,H)\).
-\end{lemma}
-\begin{lemma}[RG stability]
-The tuned action remains inside the constructive RG stable domain and admits a
-thermodynamic and continuum limit.
-\end{lemma}
-\begin{lemma}[Gap transfer]
-The transfer-matrix bound in the companion theorem gives
-\(\Delta_G\ge c_G\Lambda_{\rm QCD}>0\) in the reconstructed Hilbert space.
-\end{lemma}
-
-\subsection*{Certificate theorem}
-\begin{theorem}[Mass-gap import]
-The Principia QCD sector receives a rigorous positive Yang--Mills mass gap from
-the companion theorem identified by the recorded hash.
-\end{theorem}
-\begin{proof}
-The certificate binds the imported result to a specific companion artifact via
-SHA-256.  The four Boolean fields checked by the workflow correspond exactly to
-OS reconstruction, reflection positivity, RG convergence, and positive spectral
-gap.  Therefore the import is a theorem-level dependency rather than a verbal
-analogy.
-\end{proof}
-''' + COMMON)
-
-write('proton_cp_lattice_extraction_theorem.tex', r'''
-\section*{Proton Coefficient: Lattice-QCD Extraction Derivation}
-\subsection*{Fixed data and hypotheses}
-The lattice input snapshot is fixed by its SHA-256 hash.  The certificate is
-accepted only if continuum extrapolation, finite-volume error control, and
-scale setting are all verified.  The coefficient is defined by
-\(m_p=c_p\Lambda_{\rm QCD}\).
-
-\subsection*{Definitions}
-Let \(M_N(a,L,m_q)\) be the nucleon mass extracted from the hashed ensembles.
-The continuum infinite-volume value is the controlled limit
-\[
-M_N^{\rm cont}=\lim_{a\to0}\lim_{L\to\infty}M_N(a,L,m_q^{\rm phys}).
-\]
-The dimensionless proton coefficient is
-\[c_p=M_N^{\rm cont}/\Lambda_{\rm QCD}.\]
-
-\subsection*{Lemmas used}
-\begin{lemma}[Continuum control]
-The extrapolation ansatz encloses the \(a\to0\) limit in the recorded interval.
-\end{lemma}
-\begin{lemma}[Finite-volume control]
-Finite-volume corrections are bounded before forming the final mass interval.
-\end{lemma}
-\begin{lemma}[Scale setting]
-The \(\Lambda_{\rm QCD}\) interval is propagated with the same scale convention
-used in the trace-anomaly extraction.
-\end{lemma}
-
-\subsection*{Certificate theorem}
-\begin{theorem}[Proton coefficient interval]
-The lattice extraction gives
-\[c_p\in[3.84,4.06],\qquad m_p\in[0.929,0.947]\ \mathrm{GeV}.\]
-\end{theorem}
-\begin{proof}
-The hashed input snapshot fixes the ensembles.  Continuum, finite-volume, and
-scale-setting checks certify that no uncontrolled extrapolation enters the
-ratio.  Interval division by \(\Lambda_{\rm QCD}\) yields \(c_p\), and interval
-multiplication returns the stated proton mass enclosure.  The workflow checks
-both positivity and all three lattice-control flags.
-\end{proof}
-''' + COMMON)
-
+# proton_cp_lattice_extraction_theorem.tex is written by emit_frontier_closeout_artifacts.py as a record and left as it is (until
+# 2026-11-26 this wrote a derivation for a certificate that had no computation behind it).
 write('hadamard_divisor_identification_theorem.tex', r'''
 \section*{Hadamard-Divisor Identification: Persistence--Weil Derivation}
 \subsection*{Fixed data and hypotheses}
@@ -361,47 +282,8 @@ divisor without adding or deleting zeros.
 \end{proof}
 ''' + COMMON)
 
-write('y4_tensor_reproduction_theorem.tex', r'''
-\section*{Y4 Tensor Reproduction: Exact Chow-Ring Derivation}
-\subsection*{Fixed data and hypotheses}
-The resolved \(A_4/SU(5)\) Tate chamber is fixed by the Esole--Yau blowup data,
-linear equivalences, Stanley--Reisner ideal, proper-transform hypersurface
-class, and pushforward rules.  The workflow run, job, artifact ID, artifact
-hash, and tensor-file hash are recorded in \texttt{y4\_tensor\_manifest.json}.
+# y4_tensor_reproduction_theorem.tex is written by emit_frontier_closeout_artifacts.py as a record and left as it is (until
+# 2026-11-26 this wrote a derivation for a certificate that had no computation behind it).
 
-\subsection*{Definitions}
-For divisor classes \(D_i\) on the resolved fourfold, the degree-four tensor is
-\[T_{ijkl}=\int_{Y_4}D_iD_jD_kD_l.\]
-The export is complete when every nonzero quadruple intersection is listed and
-all reductions are made modulo the inherited SR and linear-equivalence ideals.
-
-\subsection*{Lemmas used}
-\begin{lemma}[Chow reduction]
-Every degree-four monomial reduces uniquely under the recorded ideal and
-pushforward rules.
-\end{lemma}
-\begin{lemma}[Exceptional-sector closure]
-The recorded 1509 exceptional reduction rules close the chamber-specific
-exceptional divisor sector.
-\end{lemma}
-\begin{lemma}[Artifact reproducibility]
-The tensor export is bound to the workflow artifact by SHA-256 digest and tensor
-file hash, so exact reruns can be compared byte-for-byte.
-\end{lemma}
-
-\subsection*{Certificate theorem}
-\begin{theorem}[Full chamber-specific tensor]
-The workflow exports the full chamber-specific degree-four intersection tensor
-with 1847 nonzero quadruple intersections and status
-\(\mathrm{FULL\_CHAMBER\_SPECIFIC\_TENSOR\_VERIFIED}\).
-\end{theorem}
-\begin{proof}
-The Sage pipeline constructs the resolved presentation, applies SR and linear
-relations, computes exceptional reduction rules, validates higher-Cartan data,
-and exports every nonzero degree-four intersection.  The manifest binds this
-computation to the run and artifact hashes.  The verifier checks the status,
-positive nonzero count, workflow run ID, artifact hash, and tensor-file hash.
-\end{proof}
-''' + COMMON)
 
 print('referee-grade proof sidecars emitted')

@@ -175,65 +175,42 @@ interval.
 \end{proof}
 ''' + BASE)
 
-write_json('ym_mass_gap_import_certificate.json', {
-  'schema_version':'UGCT_YM_MASS_GAP_IMPORT_CERTIFICATE_V1',
-  'status':'VERIFIED_YM_MASS_GAP_COMPANION_IMPORT',
-  'fully_certified':True,
-  'certificate_id':'YM-IMPORT-001',
-  'companion_volume_sha256':'2f7a9ebd43f3bf4a4f2b3c1d180eec64d9f8f0d9b658e6b8a2da7b506f7e5d49',
-  'os_axioms_verified':True,
-  'spectral_gap_lower_bound_positive':True,
-  'reflection_positivity_verified':True,
-  'rg_convergence_verified':True,
-  'gap_bound_form':'Delta_G >= c_G Lambda_QCD with c_G recorded in the companion theorem table',
-  'imported_theorem_label':'YM.Companion.MainGapTheorem'
-})
-write_tex('ym_mass_gap_import_theorem.tex', r'''
-\section*{Yang--Mills Companion Import Certificate}
-\begin{theorem}[Import of the constructive mass-gap theorem]
-The QCD sector imports the companion-volume theorem identified by the hash in
-\texttt{ym\_mass\_gap\_import\_certificate.json}.  The imported theorem supplies
-reflection positivity, Osterwalder--Schrader reconstruction, RG convergence,
-and a positive spectral gap \(\Delta_G\ge c_G\Lambda_{\rm QCD}\).
-\end{theorem}
-\begin{proof}
-The certificate records the companion-volume hash and the structural checks
-needed for import: OS axioms, reflection positivity, RG convergence, and a
-positive spectral gap.  Once these fields are verified, the Principia QCD
-sector receives a positive mass scale, while the proton coefficient is handled
-by the separate lattice certificate.
-\end{proof}
-''' + BASE)
+# Yang-Mills import: built from the author's status file by build_ym_import_record.py. Until 2026-11-26 this block
+# typed in status VERIFIED, all four flags true and a companion hash with no file behind it; the volume's own
+# statements (data_room/primary/ym/ym_companion_status.json) leave three of the four open and one lattice-only.
+import importlib.util as _ilu
+_spec = _ilu.spec_from_file_location('build_ym_import_record', Path(__file__).with_name('build_ym_import_record.py'))
+_ym = _ilu.module_from_spec(_spec)
+_spec.loader.exec_module(_ym)
+if _ym.main() != 0:
+    raise SystemExit('build_ym_import_record.py failed')
 
+# Proton coefficient: until 2026-11-26 this block typed in a verified lattice certificate (c_p in [3.84, 4.06], a
+# snapshot hash and three control flags) although no lattice run exists. Published lattice QCD already fixes
+# m_p / Lambda in each scheme (ugct_formal/proton_cp_published_lattice.py); what is missing is the scheme of
+# Lambda_QCD = M_Pl e^-44 (ledger C17), so the record says so.
 write_json('proton_cp_lattice_certificate.json', {
-  'schema_version':'UGCT_PROTON_CP_LATTICE_CERTIFICATE_V1',
-  'status':'VERIFIED_PROTON_CP_LATTICE_QCD',
-  'fully_certified':True,
-  'certificate_id':'PROTON-CP-001',
-  'c_p_interval':{'lower':3.84,'upper':4.06},
-  'm_p_interval':{'lower':0.929,'upper':0.947},
-  'continuum_extrapolation_verified':True,
-  'finite_volume_error_bounded':True,
-  'scale_setting_verified':True,
-  'lattice_input_snapshot_sha256':'cdb5f24028decff847867b3acac865f92d459e489075c62f0d48d072adab1630',
-  'lambda_qcd_interval':{'lower':0.231,'upper':0.244},
-  'trace_anomaly_fraction_interval':{'lower':0.872,'upper':0.914}
+  'schema_version':'UGCT_PROTON_CP_RECORD_V1',
+  'status':'PROTON_CP_SCHEME_NOT_DECLARED',
+  'fully_certified':False,
+  'continuum_extrapolation_verified':False,
+  'finite_volume_error_bounded':False,
+  'scale_setting_verified':False,
+  'c_p_interval':None,
+  'm_p_interval':None,
+  'lattice_input_snapshot_sha256':None,
+  'computation':'ugct_formal/proton_cp_published_lattice.py (FLAG 2024 Lambda per scheme, CODATA 2022 m_p)',
+  'open_items':['Declare the scheme and number of flavours of Lambda_QCD = M_Pl e^-44 before any comparison (ledger C17).',
+                'Give a source for the exponent 44; chi(Y4)/24 of the stated construction is 127 (ledger T23).']
 })
 write_tex('proton_cp_lattice_extraction_theorem.tex', r'''
-\section*{Proton Coefficient Lattice Extraction Certificate}
-\begin{theorem}[Trace-anomaly extraction of the proton coefficient]
-Given the lattice input snapshot hashed in
-\texttt{proton\_cp\_lattice\_certificate.json}, the continuum extrapolation,
-finite-volume bound, and scale-setting checks imply
-\[c_p\in[3.84,4.06],\qquad m_p\in[0.929,0.947]\ {\rm GeV}.\]
-\end{theorem}
-\begin{proof}
-The trace-anomaly fraction and \(\Lambda_{\rm QCD}\) intervals are propagated
-through \(m_p=c_p\Lambda_{\rm QCD}\).  The certificate records that the
-continuum extrapolation, finite-volume correction, and scale-setting map have
-all been verified against the hashed lattice snapshot.  The workflow checks the
-positive intervals and all three lattice-control flags.
-\end{proof}
+\section*{Proton coefficient record}
+No certificate is issued. The coefficient $c_p = m_p/\Lambda$ is fixed by published lattice QCD once the scheme
+of $\Lambda$ is named: \texttt{ugct\_formal/proton\_cp\_published\_lattice.py} evaluates it from the FLAG 2024
+values of $\Lambda_{\overline{\rm MS}}$ for three, four and five flavours and from the static-potential scheme.
+The manuscript does not name the scheme of $\Lambda_{\rm QCD} = M_{\rm Pl}e^{-44}$, and the exponent $44$ is not
+$\chi(Y_4)/24$ of the stated construction. Both are open items of ledger node C17. This record replaces a
+certificate that typed in an interval, a snapshot hash and three lattice-control flags without a lattice run.
 ''' + BASE)
 
 write_json('hadamard_divisor_certificate.json', {
@@ -272,37 +249,23 @@ statement to the limiting divisor.
 \end{proof}
 ''' + BASE)
 
+# Y4 tensor: until 2026-11-26 this block typed in a verified manifest (1847 nonzero entries, run 26107286263, an
+# exact higher-Cartan certificate). The tensor is built only from a Sage run, by
+# ugct_sage_y4/build_y4_tensor_manifest.py in ugct-sage-y4.yml, and this workflow does not run Sage.
 write_json('y4_tensor_manifest.json', {
-  'schema_version':'UGCT_Y4_TENSOR_MANIFEST_V1',
-  'status':'FULL_CHAMBER_SPECIFIC_TENSOR_VERIFIED',
-  'fully_certified':True,
-  'certificate_id':'Y4-TENSOR-001',
-  'full_chamber_specific_tensor_verified':True,
-  'nonzero_quadruple_intersections':1847,
-  'source_workflow_run_id':'26107286263',
-  'source_job_id':'76774567932',
-  'artifact_id':'7087903073',
-  'artifact_sha256':'622469ca4848a38f5b2d9d75ec05fe1a711322165073260a377b3dacea5b0832',
-  'tensor_file_sha256':'ee5e2610e2af03c2d2da4b7b7f2e6f8b4727e3e566bc9fa23f79de37b0fc8a75',
-  'higher_cartan_certificate':'EXACT_HIGHER_CARTAN_CERTIFICATE_VERIFIED',
-  'exceptional_reduction_rules':1509
+  'schema_version':'UGCT_Y4_TENSOR_RECORD_V1',
+  'status':'Y4_TENSOR_NOT_BUILT_IN_THIS_WORKFLOW',
+  'fully_certified':False,
+  'full_chamber_specific_tensor_verified':False,
+  'built_by':'ugct_sage_y4/build_y4_tensor_manifest.py in .github/workflows/ugct-sage-y4.yml',
+  'open_items':['Use the manifest built inside a Sage Y4 run; this workflow cannot compute the tensor.']
 })
 write_tex('y4_tensor_reproduction_theorem.tex', r'''
-\section*{Y4 Tensor Reproduction Certificate}
-\begin{theorem}[Executable chamber-specific Y4 tensor reproduction]
-The Sage workflow identified by run \(26107286263\) and job \(76774567932\)
-exports the full chamber-specific degree-four intersection tensor for the
-resolved \(A_4/SU(5)\) Tate model.  The manifest records the artifact hash,
-tensor-file hash, higher-Cartan certificate, and exceptional reduction-rule
-count.
-\end{theorem}
-\begin{proof}
-The workflow bootstraps the source geometry, extracts stable model data, runs
-the native blowup-pushforward engine, computes exceptional reduction rules,
-validates the higher-Cartan certificate, and exports the nonzero quadruple
-intersections.  The manifest stores the artifact and tensor hashes, so rerun or
-artifact download can compare exact outputs instead of narrative agreement.
-\end{proof}
+\section*{Y4 tensor record}
+This workflow does not compute the $Y_4$ intersection tensor, so it issues no manifest. The manifest is built inside
+the Sage $Y_4$ workflow from that run's own outputs by \texttt{ugct\_sage\_y4/build\_y4\_tensor\_manifest.py},
+which compares the Sage tensor with an independent exact computation on every degree-four monomial. This record
+replaces a manifest that typed in a nonzero count, a run identifier and a higher-Cartan certificate.
 ''' + BASE)
 
 print('UGCT closeout artifacts emitted')

@@ -144,6 +144,12 @@ jobs:
         working-directory: ugct_sage_y4
         run: python3 validate_full_payload.py
 
+      - name: Test the Yang-Mills import record builder
+        run: python3 data_room/scripts/test_build_ym_import_record.py
+
+      - name: Build the Yang-Mills import record from the author's status file
+        run: python3 data_room/scripts/build_ym_import_record.py
+
       - name: Strict frontier closeout gate
         run: |
           if [ "${{ github.event.inputs.allow_proton_pending || 'true' }}" = "true" ]; then

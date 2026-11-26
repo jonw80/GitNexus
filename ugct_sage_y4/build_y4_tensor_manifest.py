@@ -13,8 +13,10 @@ The tensor counts as FULL_CHAMBER_SPECIFIC_TENSOR_VERIFIED only if all three of 
   1. the tensor was exported in this run and its counts are consistent;
   2. the resolved ambient Chow input declares itself complete (RESOLVED_AMBIENT_CHOW_DATA_VERIFIED,
      the status the input file itself requires for full acceptance);
-  3. an independent cross-check (IntersectionNumbers via Wolfram or Mathics) reproduced the values,
-     with a computed count of at least the required count and zero mismatches.
+  3. an independent cross-check reproduced the higher-Cartan values: the table in this run was written by an
+     IntersectionNumbers run (Wolfram or Mathics), and it agrees value by value with the native Sage table,
+     which the workflow keeps in ugct_sage_y4/data/higher_cartan_native_values.json before the optional runs
+     (all three producers write the same file).
 Otherwise the status is Y4_TENSOR_COMPUTED_NOT_INDEPENDENTLY_VERIFIED, and the reasons are listed in open_items.
 
 The script exits 1 only when this run's outputs are missing or inconsistent.
@@ -26,6 +28,7 @@ import hashlib
 import json
 import os
 import sys
+from fractions import Fraction
 from math import comb
 from pathlib import Path
 
@@ -34,6 +37,9 @@ SUMMARY = "ugct_sage_y4/reports/sage_run_summary.json"
 CHOW_INPUT = "ugct_sage_y4/data/esole_yau_ewx_resolved_ambient_chow.json"
 EXC_RULES = "ugct_sage_y4/data/esole_yau_exceptional_reduction_rules.json"
 HC_RULES = "ugct_sage_y4/data/higher_cartan_closure_rules.json"
+HC_NATIVE = "ugct_sage_y4/data/higher_cartan_native_values.json"
+CROSS_PRODUCERS = {"run_intersectionnumbers_ewx.wls": "wolfram", "run_intersectionnumbers_ewx_mathics.py": "mathics"}
+PRODUCER_OK = {"wolfram": "INTERSECTIONNUMBERS_EWX_EXACT_VALUES_EXPORTED", "mathics": "MATHICS_EWX_EXACT_VALUES_EXPORTED"}
 WOLFRAM = "ugct_sage_y4/reports/intersectionnumbers_ewx_run_report.json"
 MATHICS = "ugct_sage_y4/reports/intersectionnumbers_ewx_mathics_report.json"
 OUT_JSON = "data_room/data/y4_tensor_manifest.json"
@@ -70,14 +76,42 @@ def load(root: Path, rel: str, required: bool):
         raise RunOutputError(f"unreadable {rel}: {exc}")
 
 
-def cross_check_passed(report, required: int) -> bool:
-    """A cross-check passes only if it says how many values it computed and that none mismatched."""
-    if not isinstance(report, dict):
-        return False
+def exact(v):
     try:
-        return int(report.get("computed_count", -1)) >= required > 0 and int(report.get("mismatch_count", -1)) == 0
+        return Fraction(str(v).replace(" ", ""))
+    except (ValueError, ZeroDivisionError):
+        return None
+
+
+def compare_tables(native, final, reports=None) -> dict:
+    """Value-by-value comparison of an IntersectionNumbers higher-Cartan table with the native Sage table.
+
+    reports maps "wolfram"/"mathics" to that run's report; the producer's report must say it exported the values.
+    """
+    nv = (native or {}).get("exact_values") if isinstance(native, dict) else None
+    fv = (final or {}).get("exact_values") if isinstance(final, dict) else None
+    nv = nv if isinstance(nv, dict) else {}
+    fv = fv if isinstance(fv, dict) else {}
+    producer = CROSS_PRODUCERS.get(str((final or {}).get("computed_by")))
+    try:
+        required = int((native or {}).get("required_value_count") or len(nv))
     except (TypeError, ValueError):
-        return False
+        required = len(nv)
+    out = {"independent_producer": producer, "native_value_count": len(nv), "independent_value_count": len(fv) if producer else 0,
+           "required_value_count": required, "mismatch_count": None, "mismatch_sample": [], "passed": False}
+    if producer is None or not nv:
+        return out
+    status = ((reports or {}).get(producer) or {}).get("status")
+    out["producer_report_status"] = status
+    if status != PRODUCER_OK[producer]:
+        out["mismatch_count"] = None
+        return out
+    keys = sorted(set(nv) | set(fv))
+    mism = [k for k in keys if k not in nv or k not in fv or exact(nv[k]) is None or exact(nv[k]) != exact(fv[k])]
+    out["mismatch_count"] = len(mism)
+    out["mismatch_sample"] = mism[:10]
+    out["passed"] = required > 0 and len(nv) >= required and len(fv) >= required and not mism
+    return out
 
 
 def build(root: Path, env: dict) -> tuple[dict, str]:
@@ -86,6 +120,7 @@ def build(root: Path, env: dict) -> tuple[dict, str]:
     chow = load(root, CHOW_INPUT, False) or {}
     exc = load(root, EXC_RULES, False) or {}
     hc = load(root, HC_RULES, False) or {}
+    native = load(root, HC_NATIVE, False)
     wolfram = load(root, WOLFRAM, False)
     mathics = load(root, MATHICS, False)
 
@@ -109,11 +144,7 @@ def build(root: Path, env: dict) -> tuple[dict, str]:
     if problems:
         raise RunOutputError("; ".join(problems))
 
-    required_hc = int(hc.get("required_value_count") or 0)
-    checks = {
-        "wolfram": cross_check_passed(wolfram, required_hc),
-        "mathics": cross_check_passed(mathics, required_hc),
-    }
+    comparison = compare_tables(native, hc, {"wolfram": wolfram, "mathics": mathics})
     exc_rules = exc.get("rules") if isinstance(exc.get("rules"), dict) else {}
     exc_zero = sum(1 for v in exc_rules.values() if str(v) in ("0", "0/1"))
     chow_status = str(chow.get("status", "MISSING"))
@@ -122,14 +153,28 @@ def build(root: Path, env: dict) -> tuple[dict, str]:
     if chow_status != CHOW_COMPLETE:
         open_items.append(f"The resolved ambient Chow input is not complete: its status is {chow_status}, "
                           f"and the input file requires {CHOW_COMPLETE} for full acceptance.")
-    if not any(checks.values()):
-        open_items.append("No independent cross-check reproduced the values: the IntersectionNumbers runs report "
-                          f"Wolfram {(wolfram or {}).get('status', 'MISSING')} and Mathics "
-                          f"{(mathics or {}).get('status', 'MISSING')} "
-                          f"(computed {(mathics or {}).get('computed_count', 'n/a')}, errors {(mathics or {}).get('error_count', 'n/a')}).")
+    if not comparison["passed"]:
+        if comparison["independent_producer"] is None:
+            open_items.append("No independent cross-check reproduced the values: the higher-Cartan table in this run was "
+                              f"written by {hc.get('computed_by', 'MISSING')}, and the IntersectionNumbers runs report "
+                              f"Wolfram {(wolfram or {}).get('status', 'MISSING')} and Mathics "
+                              f"{(mathics or {}).get('status', 'MISSING')} "
+                              f"(computed {(mathics or {}).get('computed_count', 'n/a')}, errors {(mathics or {}).get('error_count', 'n/a')}).")
+        elif not comparison["native_value_count"]:
+            open_items.append("The IntersectionNumbers table cannot be compared: the native Sage table was not kept "
+                              f"({HC_NATIVE} is missing or empty).")
+        elif comparison.get("producer_report_status") != PRODUCER_OK[comparison["independent_producer"]]:
+            open_items.append(f"The higher-Cartan table names {comparison['independent_producer']} as its producer, but that "
+                              f"run's report says {comparison.get('producer_report_status')}, not "
+                              f"{PRODUCER_OK[comparison['independent_producer']]}.")
+        else:
+            open_items.append(f"The IntersectionNumbers table ({comparison['independent_producer']}) does not reproduce the native "
+                              f"Sage table: {comparison['mismatch_count']} keys differ or are missing (native "
+                              f"{comparison['native_value_count']} values, IntersectionNumbers "
+                              f"{comparison['independent_value_count']}, {comparison['required_value_count']} required).")
     verified = not open_items
 
-    files = [TENSOR, SUMMARY, CHOW_INPUT, EXC_RULES, HC_RULES, WOLFRAM, MATHICS]
+    files = [TENSOR, SUMMARY, CHOW_INPUT, EXC_RULES, HC_RULES, HC_NATIVE, WOLFRAM, MATHICS]
     present = [(rel, sha256_file(root / rel)) for rel in files if (root / rel).exists()]
     bundle = hashlib.sha256("".join(f"{rel}:{h}\n" for rel, h in sorted(present)).encode()).hexdigest()
 
@@ -161,18 +206,20 @@ def build(root: Path, env: dict) -> tuple[dict, str]:
             "chow_input_status": chow_status,
             "exceptional_rules": {"status": exc.get("status"), "rule_count": len(exc_rules), "zero_values": exc_zero},
             "higher_cartan_rules": {"status": hc.get("status"), "computed_by": hc.get("computed_by"),
-                                    "value_count": hc.get("value_count"), "required_value_count": required_hc},
+                                    "value_count": hc.get("value_count"),
+                                    "required_value_count": comparison["required_value_count"]},
         },
         "cross_checks": {
-            "wolfram": {"status": (wolfram or {}).get("status", "MISSING"), "passed": checks["wolfram"]},
+            "wolfram": {"status": (wolfram or {}).get("status", "MISSING")},
             "mathics": {"status": (mathics or {}).get("status", "MISSING"), "computed_count": (mathics or {}).get("computed_count"),
-                        "error_count": (mathics or {}).get("error_count"), "passed": checks["mathics"]},
+                        "error_count": (mathics or {}).get("error_count")},
+            "table_comparison": comparison,
         },
         "sage_run_reported": {"status": summary.get("status"), "full_tensor_status": summary.get("full_tensor_status"),
                               "full_chamber_specific_tensor_verified": summary.get("full_chamber_specific_tensor_verified")},
         "typed_values_not_used": typed,
         "verification_rule": "verified only if the tensor was exported consistently in this run, the Chow input declares "
-                             f"{CHOW_COMPLETE}, and an independent cross-check reproduced the values with zero mismatches",
+                             f"{CHOW_COMPLETE}, and an IntersectionNumbers table agrees value by value with the native Sage table",
         "open_items": open_items,
     }
     manifest["payload_hash"] = canonical_hash(manifest)
@@ -189,8 +236,8 @@ def build(root: Path, env: dict) -> tuple[dict, str]:
         f"\\item Tensor file SHA-256 \\texttt{{{manifest['tensor_file_sha256']}}}.",
         f"\\item Resolved ambient Chow input status: \\texttt{{{chow_status.replace('_', chr(92) + '_')}}}.",
         f"\\item Exceptional rules: {len(exc_rules)}, of which {exc_zero} are zero.",
-        f"\\item Independent cross-checks: Wolfram {'passed' if checks['wolfram'] else 'not passed'}, "
-        f"Mathics {'passed' if checks['mathics'] else 'not passed'}.",
+        f"\\item Independent cross-check (IntersectionNumbers table against the native Sage table): "
+        f"{'agrees' if comparison['passed'] else 'not established'}.",
         f"\\item Status: \\texttt{{{manifest['status'].replace('_', chr(92) + '_')}}}.",
         r"\end{itemize}",
     ]

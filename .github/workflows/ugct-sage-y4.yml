@@ -50,6 +50,9 @@ jobs:
         working-directory: ugct_sage_y4
         run: sage -python native_pushforward_core.py
 
+      - name: Keep the native higher-Cartan table for the independent comparison
+        run: cp ugct_sage_y4/data/higher_cartan_closure_rules.json ugct_sage_y4/data/higher_cartan_native_values.json
+
       - name: Optional Wolfram Ewx exact pushforward cross-check
         working-directory: ugct_sage_y4
         run: |

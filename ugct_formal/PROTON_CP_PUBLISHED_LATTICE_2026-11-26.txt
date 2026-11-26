@@ -1,0 +1,17 @@
+Proton coefficient c_p = m_p / Lambda from published lattice QCD (no new lattice run)
+input snapshot sha256: e0308b42c917e8be0758c0852a1dabdc72ffc974d6d70444aad436fde47c7264
+m_p = 938.27208943 MeV (CODATA 2022); M_Pl e^-44 = 949.991(0.011) MeV (manuscript Lambda_QCD)
+
+scheme                            Lambda [MeV]   c_p = m_p/Lambda   1-sigma interval  M_Pl e^-44 / Lambda     pull
+MS-bar, N_f = 3                        338(10)       2.776 +- 0.082   [2.694, 2.858]          2.811        61 sigma
+MS-bar, N_f = 4                        295(10)       3.181 +- 0.108   [3.073, 3.288]          3.220        65 sigma
+MS-bar, N_f = 5                         213(8)       4.405 +- 0.165   [4.240, 4.570]          4.460        92 sigma
+static potential (V), N_f = 3          499(15)       1.882 +- 0.056   [1.826, 1.937]          1.905        31 sigma
+
+manuscript c_p with Lambda = M_Pl e^-44: m_p/949.99 = 0.987665. This is the measured ratio, not a QCD
+computation: lattice QCD computes m_N/Lambda only once the scheme of Lambda is fixed.
+manuscript 'lattice presentation' c_p in [3.84, 4.06] with Lambda in [0.231, 0.244] GeV 'MS-bar': overlaps the 1-sigma FLAG 2024 interval for no scheme listed.
+M_Pl e^-44 is 2.8 times Lambda_MSbar^(3) and 1.9 times Lambda_V^(3); it is not the Lambda parameter of
+MS-bar QCD for any number of flavours (pulls above).
+
+checks: all passed

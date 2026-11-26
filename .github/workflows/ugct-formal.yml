@@ -123,3 +123,9 @@ jobs:
       - name: X_5 accuracy scans A and B, T21, T22 (fails if a consistency check fails)
         working-directory: ugct_formal
         run: python3 -I prereg/x5_accuracy_scan.py
+
+      - name: Proton c_p from published lattice QCD (FLAG 2024, CODATA 2022); output must match the committed results
+        working-directory: ugct_formal
+        run: |
+          python3 -I proton_cp_published_lattice.py /tmp/proton_cp.txt
+          diff -u PROTON_CP_PUBLISHED_LATTICE_2026-11-26.txt /tmp/proton_cp.txt

@@ -116,6 +116,7 @@ jobs:
         working-directory: ugct_formal
         run: |
           python3 -I prereg/test_x5_accuracy_checks.py
+          python3 -I prereg/test_alpha_exactness_checks.py
           python3 -I prereg/x5_dictionary.py
 
       - name: X_5 accuracy scans A and B, T21, T22 (fails if a consistency check fails)

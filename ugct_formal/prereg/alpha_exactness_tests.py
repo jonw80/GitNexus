@@ -52,22 +52,30 @@ hits = [(c, k, mm, v) for c, k, mm, v in forms if abs(v - d_obs) <= SIG]
 print(f"E  family size {len(forms)}; terms within 1 sigma: {len(hits)}")
 for c, k, mm, v in hits:
     print(f"     ({c}) alpha^{k} pi^{mm} = {mp.nstr(v, 8)}   {mp.nstr((v - d_obs) / SIG, 3)} sigma")
-r = float(SIG / d_obs)                                  # relative window
-lo, hi = float(d_obs) / 2, float(d_obs) * 2
-ivs = sorted((max(flog(float(v) / (1 + r)), flog(lo)), min(flog(float(v) / (1 - r)), flog(hi)))
-             for *_, v in forms if lo / (1 + r) < float(v) < hi / (1 - r))
-covered, cur = 0.0, None
-for a, b in ivs:
-    if cur is None or a > cur[1]:
-        if cur:
-            covered += cur[1] - cur[0]
-        cur = [a, b]
-    else:
-        cur[1] = max(cur[1], b)
-if cur:
-    covered += cur[1] - cur[0]
-print(f"   chance that a random target in [delta_obs/2, 2 delta_obs] has >= 1 hit: {covered / flog(4):.3f}"
-      f" ({len(ivs)} family values in that range)")
+def hit_chance(values, sig, lo, hi):
+    """Chance that a target t, log-uniform on [lo, hi], has a value v with |v - t| <= sig (the hit test above).
+
+    Each value covers the targets [v - sig, v + sig]; the covered log-length is divided by log(hi/lo).
+    (Corrected 2026-11-26: the first run gave each value the relative window t(1 -+ sig/delta_obs) instead.)
+    Returns (chance, number of values whose window meets [lo, hi]).
+    """
+    ivs = sorted((flog(max(v - sig, lo)), flog(min(v + sig, hi))) for v in values if v + sig > lo and v - sig < hi)
+    covered, cur = 0.0, None
+    for a, b in ivs:
+        if cur is None or a > cur[1]:
+            if cur:
+                covered += cur[1] - cur[0]
+            cur = [a, b]
+        else:
+            cur[1] = max(cur[1], b)
+    if cur:
+        covered += cur[1] - cur[0]
+    return covered / flog(hi / lo), len(ivs)
+
+
+chance, n_in = hit_chance([float(v) for *_, v in forms], float(SIG), float(d_obs) / 2, float(d_obs) * 2)
+print(f"   chance that a random target in [delta_obs/2, 2 delta_obs] has >= 1 hit: {chance:.3f}"
+      f" ({n_in} family values in that range)")
 
 # The alpha^2/pi reading solved self-consistently: alpha^-1 = L + alpha^2/pi.
 x = L

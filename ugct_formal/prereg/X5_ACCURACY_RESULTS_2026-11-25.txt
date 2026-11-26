@@ -43,7 +43,7 @@ Scan A:
     both equal alpha^2/pi to that precision; with alpha -> 1/L all three hits give the same value. They are C30 again.
   - None of the 45 unflagged X_5 numbers gives a hit.
   - The reference hit alpha^2/pi (C30) is in a 35-form family that a random target hits 0.4% of the time. That family
-    was defined after C30 was known (C30 came from scan E, where a random target is hit 22% of the time). It is
+    was defined after C30 was known (C30 came from scan E, where a random target is hit 24% of the time; first reported as 22%, corrected 2026-11-26). It is
     therefore not evidence under the pre-registered criterion, which applies to the X_5 forms.
   - Mechanism check: none found (C30 node). Sigma-screen: with alpha -> 1/L the correction is 1/(pi L^2), whose
     sigma is 3/5, while sigma(Law 1) = 1/5. The corrected law is not homogeneous in sigma.

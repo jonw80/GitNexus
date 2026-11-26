@@ -11,3 +11,10 @@ E  family size 1323; terms within 1 sigma: 1
      (1) alpha^2 pi^-1 = 1.6950437e-5   0.7 sigma
    chance that a random target in [delta_obs/2, 2 delta_obs] has >= 1 hit: 0.220 (128 family values in that range)
    alpha^-1 = L + alpha^2/pi solved: 137.0359991917  vs CODATA 2022 137.035999177 -> 0.7 sigma;  equivalent scale sqrt(15) alpha m_e = 14.44 keV
+
+Correction (2026-11-26): the chance line above (0.220) gave each family value the relative window
+t(1 -+ sigma/delta_obs) for a target t, while the pre-registered hit test is the fixed window |v - t| <= sigma.
+With the fixed window (hit_chance in alpha_exactness_tests.py, tested by test_alpha_exactness_checks.py):
+   chance that a random target in [delta_obs/2, 2 delta_obs] has >= 1 hit: 0.237 (127 family values in that range)
+The hit list is unchanged (only alpha^2/pi, +0.7 sigma), and so is the conclusion: chance-level, not evidence.
+Reported by a review bot on PR #2.

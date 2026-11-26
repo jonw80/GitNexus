@@ -111,3 +111,13 @@ jobs:
       - name: Generation-4 checks, T18, T19, T20 (fails if any check fails)
         working-directory: ugct_formal
         run: python3 -I prereg/evolution_gen4.py
+
+      - name: X_5 dictionary checks and tests of the scan code
+        working-directory: ugct_formal
+        run: |
+          python3 -I prereg/test_x5_accuracy_checks.py
+          python3 -I prereg/x5_dictionary.py
+
+      - name: X_5 accuracy scans A and B, T21, T22 (fails if a consistency check fails)
+        working-directory: ugct_formal
+        run: python3 -I prereg/x5_accuracy_scan.py

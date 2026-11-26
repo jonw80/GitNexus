@@ -7,11 +7,11 @@ assumed, and what was fitted — checked by machine on every commit
 | Path | What it is |
 |---|---|
 | `lean/` | Lean 4 + Mathlib proofs. `lean/report.txt` lists, for each theorem, every axiom it rests on (`#print axioms`). |
-| `derivation_ledger.json` | The derivation graph: 79 nodes (postulates, measured inputs, theorems, imports, claims), one per line. |
+| `derivation_ledger.json` | The derivation graph: 82 nodes (postulates, measured inputs, theorems, imports, claims), one per line. |
 | `check_ledger.py` | Ledger rules R0–R5. R5 compares every node's label with the Lean axiom report. |
 | `fermat_point_couplings.py` | Weil–Petersson metric and normalized Yukawa coupling of the Fermat quintic, recomputed from the Picard–Fuchs equation alone. |
 | `block_lattice.py` | H₃(X₅, ℤ) built from Pham's vanishing cycles, and the integral lattice of each character block (ledger T11). |
-| `prereg/` | Pre-registered tests, committed before their results: the Law 1 exactness tests, the exact-coupling tests and the four generations of the evolutionary search (T14-T20), with their scripts and output. |
+| `prereg/` | Pre-registered tests, committed before their results: the Law 1 exactness tests, the exact-coupling tests, the four generations of the evolutionary search (T14-T20) and the X₅ accuracy scans (T21, T22), with their scripts and output. |
 
 ## What CI checks
 
@@ -36,6 +36,18 @@ assumed, and what was fitted — checked by machine on every commit
    charge of H₃(X₅, ℤ) has α⁻¹ ≤ 20.31: each block's Hodge form is built exactly and every vector up
    to the bound is enumerated. Both scripts exit with status 1 if any pre-registered check fails; the
    `prereg/test_*.py` files test the exact arithmetic and the pass/fail logic.
+7. `prereg/x5_dictionary.py` and `prereg/x5_accuracy_scan.py`: 47 numbers that X₅ determines. Where
+   possible they are recomputed from X₅'s defining data:
+   * the Chern numbers;
+   * the Gopakumar–Vafa numbers, from the periods in exact arithmetic;
+   * the 51 Galois blocks;
+   * the conifold newform of level 25, identified by point counts;
+   * the L-values, checked with PARI.
+
+   The scans then test whether any of the numbers makes Law 1 accurate (T21, T22). Scan A tries
+   additive corrections to Law 1. Scan B tries products of up to three of the numbers against α⁻¹
+   at CODATA precision, about 24.8 million forms. Both scans use null models. Every hit is
+   recomputed at 50 digits, and the run fails if a window count differs from the verified count.
 
 ## Run locally
 
@@ -50,3 +62,4 @@ assumed, and what was fitted — checked by machine on every commit
     python3 prereg/test_evolution_gen2_checks.py
     python3 prereg/test_evolution_gen3_checks.py && python3 prereg/test_evolution_gen4_checks.py
     python3 prereg/evolution_gen2.py && python3 prereg/evolution_gen3.py && python3 prereg/evolution_gen4.py
+    python3 prereg/test_x5_accuracy_checks.py && python3 prereg/x5_dictionary.py && python3 prereg/x5_accuracy_scan.py

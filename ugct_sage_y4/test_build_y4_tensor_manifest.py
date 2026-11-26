@@ -44,7 +44,7 @@ PARTIAL_CHOW = "RESOLVED_AMBIENT_CHOW_MANUAL_TRANSCRIPTION_PARTIAL"
 
 
 def plant(root, sage_entries=None, ind=IND, chow_status=PARTIAL_CHOW, summary_nonzero=None, with_summary=True,
-          sage_checks=None):
+          sage_checks=None, summary_extra=None, hc_rules=None, cross=None, wolfram=None):
     entries = SAGE_ENTRIES if sage_entries is None else sage_entries
     n_nonzero = sum(1 for v in entries.values() if str(v) != "0")
     files = {
@@ -52,18 +52,24 @@ def plant(root, sage_entries=None, ind=IND, chow_status=PARTIAL_CHOW, summary_no
                     "checks": sage_checks if sage_checks is not None else {"chi_Y4": None}},
         bm.CHOW_INPUT: {"status": chow_status},
         bm.EXC_RULES: {"status": "EXCEPTIONAL_SECTOR_VERIFIED", "rules": {"A,A,A,A": 0, "C,C,C,C": -8}},
-        bm.HC_RULES: NATIVE,
+        bm.HC_RULES: hc_rules if hc_rules is not None else NATIVE,
         bm.HC_NATIVE: NATIVE,
-        bm.WOLFRAM: WOLFRAM_NONE,
+        bm.WOLFRAM: wolfram if wolfram is not None else WOLFRAM_NONE,
         bm.MATHICS: MATHICS_FAIL,
     }
     if ind is not None:
         files[bm.INDEPENDENT] = ind
+    if cross is not None:
+        files[bm.HC_CROSS] = cross
     if with_summary:
         files[bm.SUMMARY] = {"status": "SAGE_DEGREE4_TENSOR_EXPORTED", "full_tensor_status": bm.VERIFIED,
                              "full_chamber_specific_tensor_verified": True,
                              "nonzero_exported": n_nonzero if summary_nonzero is None else summary_nonzero,
-                             "total_symmetric_multisets_degree4": comb(6, 4), "zero_multisets": comb(6, 4) - n_nonzero}
+                             "total_symmetric_multisets_degree4": comb(6, 4), "zero_multisets": comb(6, 4) - n_nonzero,
+                             "full_chamber_specific_tensor_executed_with_fallback": False,
+                             "exceptional_rule_file": {"declares_exceptional_sector_executed_with_fallback": False,
+                                                       "reduction_stats": {"higher_cartan_fallback_terms": 0}}}
+        files[bm.SUMMARY].update(summary_extra or {})
     for rel, obj in files.items():
         p = root / rel
         p.parent.mkdir(parents=True, exist_ok=True)
@@ -147,12 +153,31 @@ assert m["status"] == bm.NOT_VERIFIED and "different bases" in " ".join(m["open_
 m, _, _ = build(sage_checks={"chi_Y4": 1056})
 assert "chi_Y4" in m["typed_values_not_used"] and "1056" not in json.dumps({k: v for k, v in m.items() if k != "typed_values_not_used"})
 
-# 7. missing or inconsistent Sage outputs stop the build
+# 7. a Sage tensor built with fallback values (or without the flag) is no cross-check, even if it agrees
+for extra in ({"full_chamber_specific_tensor_executed_with_fallback": True},
+              {"full_chamber_specific_tensor_executed_with_fallback": None},
+              {"exceptional_rule_file": {"declares_exceptional_sector_executed_with_fallback": True}},
+              {"exceptional_rule_file": {"reduction_stats": {"higher_cartan_fallback_terms": 3}}}):
+    m, _, fails = build(summary_extra=extra)
+    assert m["status"] == bm.NOT_VERIFIED and "fallback" in " ".join(m["open_items"]) and m["sage_fallback_reasons"], extra
+    assert "tensor verified flag required" in fails
+
+# 8. an IntersectionNumbers table saved right after its run is compared even after a later Sage step rewrote the
+#    shared higher-Cartan file (recorded, not required)
+WOLFRAM_TABLE = {"computed_by": "run_intersectionnumbers_ewx.wls", "exact_values": {"C,C,C,C": "-8"}, "value_count": 1}
+SAGE_TABLE = {"computed_by": "export_higher_cartan_from_resolved_presentation.sage", "exact_values": {"C,C,C,C": "0"}}
+m, _, _ = build(hc_rules=SAGE_TABLE, cross=WOLFRAM_TABLE,
+                wolfram={"status": "INTERSECTIONNUMBERS_EWX_EXACT_VALUES_EXPORTED", "value_count": 1})
+cmp_ = m["recorded_not_required"]["intersectionnumbers_table_comparison"]
+assert cmp_["independent_producer"] == "wolfram" and cmp_["passed"] is True and m["status"] == bm.VERIFIED, cmp_
+assert bm.HC_CROSS in m["files"]
+
+# 9. missing or inconsistent Sage outputs stop the build
 expect_error(with_summary=False)
 expect_error(summary_nonzero=7)
 expect_error(sage_entries={"A,A,B,D": 1})
 
-# 8. a tampered manifest fails the gate's hash check
+# 10. a tampered manifest fails the gate's hash check
 m, tex, _ = build()
 m["nonzero_quadruple_intersections"] = 1847
 with tempfile.TemporaryDirectory() as d:

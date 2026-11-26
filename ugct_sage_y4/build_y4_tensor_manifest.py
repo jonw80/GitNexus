@@ -12,17 +12,21 @@ Two computations of the same tensor run in the workflow:
 
 The manifest is filled only from this run's outputs and the GitHub run id. Every count and hash is recomputed here.
 
-The tensor counts as FULL_CHAMBER_SPECIFIC_TENSOR_VERIFIED only if all three of these hold:
+The tensor counts as FULL_CHAMBER_SPECIFIC_TENSOR_VERIFIED only if all four of these hold:
   1. the Sage tensor was exported in this run and its counts are consistent;
-  2. the independent computation ran in this run and every one of its checks passed;
-  3. the two tensors agree value by value on every degree-four monomial in the basis.
+  2. the Sage run summary says no fallback values were used (otherwise its tensor is not a computation of its own
+     and cannot serve as the cross-check);
+  3. the independent computation ran in this run and every one of its checks passed;
+  4. the two tensors agree value by value on every degree-four monomial in the basis.
 Otherwise the status is Y4_TENSOR_COMPUTED_NOT_INDEPENDENTLY_VERIFIED, and the reasons are listed in open_items.
 
 Until 2026-11-26 the rule was instead: the resolved ambient Chow input declares itself complete, and an
 IntersectionNumbers run (Wolfram or Mathics) reproduces the native higher-Cartan table. Neither cross-check could
 run (no wolframscript; Mathics fails on the package), and the native table was all zeros because of three
 convention errors (see native_pushforward_core.py). The certified values no longer come from the Chow input, so its
-status and the IntersectionNumbers runs are still recorded but no longer decide the status.
+status and the IntersectionNumbers runs are still recorded but no longer decide the status. Later Sage steps write the
+same higher-Cartan file as the IntersectionNumbers runs, so the workflow copies an IntersectionNumbers table to
+higher_cartan_intersectionnumbers_values.json right after those runs, and that copy is what gets compared.
 
 The script exits 1 only when this run's outputs are missing or inconsistent.
 Run from the repository root:  python3 ugct_sage_y4/build_y4_tensor_manifest.py
@@ -45,6 +49,7 @@ CHOW_INPUT = "ugct_sage_y4/data/esole_yau_ewx_resolved_ambient_chow.json"
 EXC_RULES = "ugct_sage_y4/data/esole_yau_exceptional_reduction_rules.json"
 HC_RULES = "ugct_sage_y4/data/higher_cartan_closure_rules.json"
 HC_NATIVE = "ugct_sage_y4/data/higher_cartan_native_values.json"
+HC_CROSS = "ugct_sage_y4/data/higher_cartan_intersectionnumbers_values.json"
 CROSS_PRODUCERS = {"run_intersectionnumbers_ewx.wls": "wolfram", "run_intersectionnumbers_ewx_mathics.py": "mathics"}
 PRODUCER_OK = {"wolfram": "INTERSECTIONNUMBERS_EWX_EXACT_VALUES_EXPORTED", "mathics": "MATHICS_EWX_EXACT_VALUES_EXPORTED"}
 WOLFRAM = "ugct_sage_y4/reports/intersectionnumbers_ewx_run_report.json"
@@ -184,6 +189,24 @@ def independent_failures(ind) -> list[str]:
     return out
 
 
+def sage_fallback_reasons(summary) -> list[str]:
+    """Reasons the Sage tensor cannot count as a computation: fallback values used, or the flag is missing."""
+    exc = summary.get("exceptional_rule_file") if isinstance(summary.get("exceptional_rule_file"), dict) else {}
+    stats = exc.get("reduction_stats") if isinstance(exc.get("reduction_stats"), dict) else {}
+    out = []
+    if summary.get("full_chamber_specific_tensor_executed_with_fallback") is not False:
+        out.append("full_chamber_specific_tensor_executed_with_fallback is "
+                   f"{summary.get('full_chamber_specific_tensor_executed_with_fallback', 'missing')}")
+    if exc.get("declares_exceptional_sector_executed_with_fallback") is True:
+        out.append("the exceptional sector was executed with fallback values")
+    try:
+        if int(stats.get("higher_cartan_fallback_terms") or 0) > 0:
+            out.append(f"{stats.get('higher_cartan_fallback_terms')} higher-Cartan fallback terms")
+    except (TypeError, ValueError):
+        out.append(f"unreadable higher_cartan_fallback_terms {stats.get('higher_cartan_fallback_terms')!r}")
+    return out
+
+
 def build(root: Path, env: dict) -> tuple[dict, str]:
     tensor = load(root, TENSOR, True)
     summary = load(root, SUMMARY, True)
@@ -192,6 +215,7 @@ def build(root: Path, env: dict) -> tuple[dict, str]:
     exc = load(root, EXC_RULES, False) or {}
     hc = load(root, HC_RULES, False) or {}
     native = load(root, HC_NATIVE, False)
+    cross = load(root, HC_CROSS, False)
     wolfram = load(root, WOLFRAM, False)
     mathics = load(root, MATHICS, False)
 
@@ -217,6 +241,10 @@ def build(root: Path, env: dict) -> tuple[dict, str]:
 
     open_items = independent_failures(ind)
     ind_ok = not open_items
+    fallback = sage_fallback_reasons(summary)
+    if fallback:
+        open_items.append("The Sage tensor cannot serve as the cross-check because the run summary reports fallback use: "
+                          + "; ".join(fallback) + ".")
     ind_entries = (ind or {}).get("quadruple_intersections") if isinstance((ind or {}).get("quadruple_intersections"), dict) else {}
     tensor_comparison = compare_tensors(basis, entries, (ind or {}).get("basis"), ind_entries) if ind_entries else \
         {"monomials_compared": 0, "mismatch_count": None, "mismatch_sample": [], "passed": False}
@@ -233,7 +261,7 @@ def build(root: Path, env: dict) -> tuple[dict, str]:
             pass                                                     # already reported by independent_failures
     verified = not open_items
 
-    comparison = compare_tables(native, hc, {"wolfram": wolfram, "mathics": mathics})
+    comparison = compare_tables(native, cross if cross is not None else hc, {"wolfram": wolfram, "mathics": mathics})
     exc_rules = exc.get("rules") if isinstance(exc.get("rules"), dict) else {}
     exc_zero = sum(1 for v in exc_rules.values() if str(v) in ("0", "0/1"))
     chow_status = str(chow.get("status", "MISSING"))
@@ -242,7 +270,7 @@ def build(root: Path, env: dict) -> tuple[dict, str]:
         certified_file, certified_entries = INDEPENDENT, canonical_entries(ind["basis"], ind_entries)[0]
     else:
         certified_file, certified_entries = TENSOR, nonzero
-    files = [TENSOR, SUMMARY, INDEPENDENT, CHOW_INPUT, EXC_RULES, HC_RULES, HC_NATIVE, WOLFRAM, MATHICS]
+    files = [TENSOR, SUMMARY, INDEPENDENT, CHOW_INPUT, EXC_RULES, HC_RULES, HC_NATIVE, HC_CROSS, WOLFRAM, MATHICS]
     present = [(rel, sha256_file(root / rel)) for rel in files if (root / rel).exists()]
     bundle = hashlib.sha256("".join(f"{rel}:{h}\n" for rel, h in sorted(present)).encode()).hexdigest()
 
@@ -301,9 +329,10 @@ def build(root: Path, env: dict) -> tuple[dict, str]:
         "sage_run_reported": {"status": summary.get("status"), "full_tensor_status": summary.get("full_tensor_status"),
                               "full_chamber_specific_tensor_verified": summary.get("full_chamber_specific_tensor_verified")},
         "typed_values_not_used": typed,
-        "verification_rule": "verified only if the Sage tensor was exported consistently in this run, the independent exact "
-                             "pushforward ran in this run with every check passed, and the two tensors agree on every "
-                             "degree-four monomial",
+        "verification_rule": "verified only if the Sage tensor was exported consistently in this run without fallback "
+                             "values, the independent exact pushforward ran in this run with every check passed, and the "
+                             "two tensors agree on every degree-four monomial",
+        "sage_fallback_reasons": fallback,
         "open_items": open_items,
     }
     manifest["payload_hash"] = canonical_hash(manifest)

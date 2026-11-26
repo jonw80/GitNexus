@@ -72,6 +72,19 @@ jobs:
         working-directory: ugct_sage_y4
         run: sage -python run_intersectionnumbers_ewx_mathics.py
 
+      - name: Keep an IntersectionNumbers table, if a cross-check wrote one (later Sage steps rewrite the shared file)
+        run: |
+          python3 - <<'EOF'
+          import json, pathlib, shutil
+          src = pathlib.Path("ugct_sage_y4/data/higher_cartan_closure_rules.json")
+          producers = ("run_intersectionnumbers_ewx.wls", "run_intersectionnumbers_ewx_mathics.py")
+          if src.exists() and json.loads(src.read_text()).get("computed_by") in producers:
+              shutil.copy(src, "ugct_sage_y4/data/higher_cartan_intersectionnumbers_values.json")
+              print("kept", src)
+          else:
+              print("no IntersectionNumbers table in this run")
+          EOF
+
       - name: Complete resolved-presentation Sage export
         working-directory: ugct_sage_y4
         run: sage -python export_higher_cartan_from_resolved_presentation.sage

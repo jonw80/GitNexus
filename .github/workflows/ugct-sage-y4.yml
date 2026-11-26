@@ -93,6 +93,12 @@ jobs:
         working-directory: ugct_sage_y4
         run: sage -python run_chow_tensor.sage
 
+      - name: Test the Y4 manifest builder
+        run: python3 ugct_sage_y4/test_build_y4_tensor_manifest.py
+
+      - name: Build the Y4 tensor certificate from this run's output
+        run: python3 ugct_sage_y4/build_y4_tensor_manifest.py
+
       - name: Compute downstream data_room certificate layer
         run: |
           mkdir -p data_room/data

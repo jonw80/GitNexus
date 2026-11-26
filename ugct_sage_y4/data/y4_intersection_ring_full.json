@@ -14,5 +14,5 @@
     "unsupported_multisets": 1509,
     "full_chamber_specific_tensor_verified": false
   },
-  "acceptance_condition": "Overwrite this file with status FULL_CHAMBER_SPECIFIC_TENSOR_VERIFIED, chi_Y4=1056, tadpole=44, unsupported_multisets=0, and the full nonzero quadruple tensor."
+  "acceptance_condition": "Overwrite this file with status FULL_CHAMBER_SPECIFIC_TENSOR_VERIFIED, unsupported_multisets=0, and the full nonzero quadruple tensor. chi_Y4 is not set here: independent_y4_pushforward.py computes it (3048 for this construction)."
 }

@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """Unit tests of build_y4_tensor_manifest.py on planted run outputs, checked with the frontier gate's own functions.
-The planted cross-check outputs have the shapes the real producers write: native_pushforward_core.py,
-run_intersectionnumbers_ewx.wls and run_intersectionnumbers_ewx_mathics.py all write
-data/higher_cartan_closure_rules.json (exact_values, computed_by) plus their own report.
+
+The planted outputs have the shapes the real producers write: run_chow_tensor.sage writes the Sage tensor and run
+summary; independent_y4_pushforward.py writes data/y4_independent_tensor.json (status, failures, basis,
+quadruple_intersections, chi_Y4, checks); native_pushforward_core.py and the IntersectionNumbers runs write
+data/higher_cartan_closure_rules.json plus their own reports (recorded only).
 Run from the repository root:  python3 ugct_sage_y4/test_build_y4_tensor_manifest.py   (exits 1 on a failed test)
 """
+import copy
 import importlib.util
 import json
 import tempfile
@@ -24,36 +27,38 @@ def load(path, name):
 bm = load(REPO / "ugct_sage_y4" / "build_y4_tensor_manifest.py", "build_y4_tensor_manifest")
 gate = load(REPO / "data_room" / "scripts" / "verify_frontier_closeout.py", "verify_frontier_closeout")
 ENV = {"GITHUB_RUN_ID": "123", "GITHUB_RUN_ATTEMPT": "1", "GITHUB_SHA": "abc123", "GITHUB_REPOSITORY": "o/r"}
-NATIVE_VALUES = {"C1,C1,C1,C1": "-8", "C1,C1,C1,C2": "3", "C1,C2,C3,R": "-3/2", "C2,C2,C2,H": "0", "C4,C4,C4,C4": "12"}
-NATIVE = {"computed_by": "native_pushforward_core.py", "exact_values": NATIVE_VALUES, "required_value_count": 5,
-          "value_count": 5, "status": "EXACT_EWX_SELF_INTERSECTION_TABLE_CERTIFIED"}
-WOLFRAM_OK = {"status": "INTERSECTIONNUMBERS_EWX_EXACT_VALUES_EXPORTED", "value_count": 5}
-MATHICS_OK = {"status": "MATHICS_EWX_EXACT_VALUES_EXPORTED", "value_count": 5}
+BASIS = ["A", "B", "C"]
+SAGE_ENTRIES = {"A,A,B,C": 2, "A,B,B,C": "-1", "A,B,C,C": 0, "C,C,C,C": "-8"}
+IND_ENTRIES = {"A,A,B,C": "2", "A,B,B,C": "-1", "C,C,C,C": "-8"}
+PASSING_CHECKS = {"chi_from_published_EJK_formula": "3048", "chi_matches_published_formula": True, "todd_genus": "2",
+                  "riemann_roch_divisors_tested": 420, "riemann_roch_failures": 0, "calabi_yau_condition": True,
+                  "zero_section_relation": True, "prepotential_triple_cartan": {"passed": True}}
+IND = {"status": bm.INDEPENDENT_OK, "failures": [], "basis": BASIS, "quadruple_intersections": IND_ENTRIES,
+       "chi_Y4": "3048", "d3_tadpole_chi_over_24": "127", "int_c2_squared": "1496", "nonzero_count": 3,
+       "method": "test", "checks": PASSING_CHECKS}
+NATIVE = {"computed_by": "native_pushforward_core.py", "exact_values": {"C,C,C,C": "-8"}, "required_value_count": 1,
+          "value_count": 1, "status": "EXACT_EWX_SELF_INTERSECTION_TABLE_CERTIFIED"}
 WOLFRAM_NONE = {"status": "WOLFRAMSCRIPT_NOT_AVAILABLE"}
 MATHICS_FAIL = {"status": "MATHICS_EWX_EXACT_VALUES_FAILED", "computed_count": 0, "error_count": 20}
+PARTIAL_CHOW = "RESOLVED_AMBIENT_CHOW_MANUAL_TRANSCRIPTION_PARTIAL"
 
 
-def table(producer, values):
-    return {"computed_by": producer, "exact_values": values, "value_count": len(values),
-            "status": "EXACT_EWX_SELF_INTERSECTION_TABLE_CERTIFIED"}
-
-
-def plant(root, chow_status="RESOLVED_AMBIENT_CHOW_MANUAL_TRANSCRIPTION_PARTIAL", final=None, native=NATIVE,
-          wolfram=WOLFRAM_NONE, mathics=MATHICS_FAIL, summary_nonzero=None, tensor_entries=None, with_summary=True):
-    basis = ["A", "B", "C"]
-    entries = tensor_entries if tensor_entries is not None else {"A,A,B,C": 2, "A,B,B,C": "-1", "A,B,C,C": 0}
+def plant(root, sage_entries=None, ind=IND, chow_status=PARTIAL_CHOW, summary_nonzero=None, with_summary=True,
+          sage_checks=None):
+    entries = SAGE_ENTRIES if sage_entries is None else sage_entries
     n_nonzero = sum(1 for v in entries.values() if str(v) != "0")
     files = {
-        bm.TENSOR: {"basis": basis, "quadruple_intersections": entries, "resolution_chamber": "test",
-                    "checks": {"chi_Y4": 1056}},
+        bm.TENSOR: {"basis": BASIS, "quadruple_intersections": entries, "resolution_chamber": "test",
+                    "checks": sage_checks if sage_checks is not None else {"chi_Y4": None}},
         bm.CHOW_INPUT: {"status": chow_status},
-        bm.EXC_RULES: {"status": "EXCEPTIONAL_SECTOR_VERIFIED", "rules": {"A,A,A,A": 0, "B,B,B,B": "0", "C,C,C,C": 3}},
-        bm.HC_RULES: final if final is not None else native,
-        bm.WOLFRAM: wolfram,
-        bm.MATHICS: mathics,
+        bm.EXC_RULES: {"status": "EXCEPTIONAL_SECTOR_VERIFIED", "rules": {"A,A,A,A": 0, "C,C,C,C": -8}},
+        bm.HC_RULES: NATIVE,
+        bm.HC_NATIVE: NATIVE,
+        bm.WOLFRAM: WOLFRAM_NONE,
+        bm.MATHICS: MATHICS_FAIL,
     }
-    if native is not None:
-        files[bm.HC_NATIVE] = native
+    if ind is not None:
+        files[bm.INDEPENDENT] = ind
     if with_summary:
         files[bm.SUMMARY] = {"status": "SAGE_DEGREE4_TENSOR_EXPORTED", "full_tensor_status": bm.VERIFIED,
                              "full_chamber_specific_tensor_verified": True,
@@ -93,50 +98,62 @@ def expect_error(**kw):
         raise AssertionError(f"inconsistent run outputs accepted: {kw}")
 
 
-# 1. today's situation: partial Chow input, the table is the native one, both cross-checks failed
+def ind_with(**changes):
+    out = copy.deepcopy(IND)
+    for k, v in changes.items():
+        if k.startswith("check_"):
+            out["checks"][k[len("check_"):]] = v
+        else:
+            out[k] = v
+    return out
+
+
+# 1. both computations agree and the independent checks pass -> verified, even with partial Chow input and no
+#    IntersectionNumbers run (those are recorded, not required); the gate's own checks pass
 m, tex, fails = build()
-assert m["status"] == bm.NOT_VERIFIED and m["fully_certified"] is False and m["full_chamber_specific_tensor_verified"] is False
-assert m["nonzero_quadruple_intersections"] == 2 and m["total_degree4_monomials"] == 15
+assert m["status"] == bm.VERIFIED and m["fully_certified"] is True and m["full_chamber_specific_tensor_verified"] is True, m["open_items"]
+assert fails == [], fails
+assert m["open_items"] == [] and m["tensor_comparison"]["monomials_compared"] == 15 and m["tensor_comparison"]["mismatch_count"] == 0
+assert m["nonzero_quadruple_intersections"] == 3 and m["tensor_file"] == bm.INDEPENDENT and m["chi_Y4"] == "3048"
+assert m["recorded_not_required"]["chow_input_status"] == PARTIAL_CHOW
 assert m["source_workflow_run_id"] == "123" and m["source_commit"] == "abc123" and len(m["artifact_sha256"]) == 64
-assert len(m["open_items"]) == 2 and "native_pushforward_core.py" in m["open_items"][1]
-assert m["cross_checks"]["table_comparison"]["independent_producer"] is None
-assert "chi_Y4" in m["typed_values_not_used"] and "1056" not in json.dumps({k: v for k, v in m.items() if k != "typed_values_not_used"})
 assert m["payload_hash"] == gate.canonical_hash(m) and len(tex.encode()) > 500
-assert any("status mismatch" in f for f in fails) and "tensor verified flag required" in fails, fails
 
-# 2. complete input; Wolfram's IntersectionNumbers run replaced the table with the same values -> verified, gate passes
-same = dict(NATIVE_VALUES, **{"C1,C2,C3,R": "-1.5"})          # equal as exact rationals
-m, tex, fails = build(chow_status=bm.CHOW_COMPLETE, final=table("run_intersectionnumbers_ewx.wls", same), wolfram=WOLFRAM_OK)
-assert m["status"] == bm.VERIFIED and m["open_items"] == [] and fails == [], (m["open_items"], fails)
-assert m["cross_checks"]["table_comparison"]["mismatch_count"] == 0
-m, tex, fails = build(chow_status=bm.CHOW_COMPLETE, final=table("run_intersectionnumbers_ewx_mathics.py", NATIVE_VALUES),
-                      mathics=MATHICS_OK)
-assert m["status"] == bm.VERIFIED and fails == []
+# 2. keys in another order and equal rationals written differently still agree
+m, _, fails = build(sage_entries={"B,A,C,A": "4/2", "C,B,B,A": "-1.0", "C,C,C,C": -8})
+assert m["status"] == bm.VERIFIED and fails == [], (m["open_items"], fails)
 
-# 3. a disagreeing, incomplete or unconfirmed independent table does not verify
-wrong = dict(NATIVE_VALUES, **{"C4,C4,C4,C4": "11"})
-m, _, _ = build(chow_status=bm.CHOW_COMPLETE, final=table("run_intersectionnumbers_ewx.wls", wrong), wolfram=WOLFRAM_OK)
-assert m["status"] == bm.NOT_VERIFIED and m["cross_checks"]["table_comparison"]["mismatch_count"] == 1
-short = {k: v for k, v in NATIVE_VALUES.items() if k != "C4,C4,C4,C4"}
-m, _, _ = build(chow_status=bm.CHOW_COMPLETE, final=table("run_intersectionnumbers_ewx.wls", short), wolfram=WOLFRAM_OK)
-assert m["status"] == bm.NOT_VERIFIED
-m, _, _ = build(chow_status=bm.CHOW_COMPLETE, final=table("run_intersectionnumbers_ewx.wls", NATIVE_VALUES), wolfram=WOLFRAM_NONE)
-assert m["status"] == bm.NOT_VERIFIED and "report says" in m["open_items"][0]
-m, _, _ = build(chow_status=bm.CHOW_COMPLETE, final=table("run_intersectionnumbers_ewx.wls", NATIVE_VALUES), wolfram=WOLFRAM_OK,
-                native=None)
-assert m["status"] == bm.NOT_VERIFIED and "was not kept" in m["open_items"][0]
+# 3. today's Sage tensor before the native fix: higher-Cartan entries all zero -> not verified, the difference is named
+m, _, fails = build(sage_entries={"A,A,B,C": 2, "A,B,B,C": "-1", "C,C,C,C": 0})
+assert m["status"] == bm.NOT_VERIFIED and m["tensor_comparison"]["mismatch_count"] == 1
+assert m["tensor_comparison"]["mismatch_sample"][0] == {"monomial": "C,C,C,C", "sage": "0", "independent": "-8"}
+assert "differ on 1 of 15 monomials" in m["open_items"][0] and "tensor verified flag required" in fails
 
-# 4. a matching table with incomplete Chow input still does not verify
-m, _, _ = build(final=table("run_intersectionnumbers_ewx.wls", NATIVE_VALUES), wolfram=WOLFRAM_OK)
-assert m["status"] == bm.NOT_VERIFIED and len(m["open_items"]) == 1
+# 4. the independent computation missing, failing a check, or reporting failures -> not verified
+m, _, _ = build(ind=None)
+assert m["status"] == bm.NOT_VERIFIED and "did not run" in m["open_items"][0] and m["tensor_file"] == bm.TENSOR
+for bad in (ind_with(check_todd_genus="3"), ind_with(check_prepotential_triple_cartan={"passed": False}),
+            ind_with(check_chi_matches_published_formula=False), ind_with(check_riemann_roch_failures=4),
+            ind_with(check_riemann_roch_divisors_tested=0), ind_with(failures=["Calabi-Yau condition fails"]),
+            ind_with(status="INDEPENDENT_COMPUTATION_CHECKS_FAILED")):
+    m, _, _ = build(ind=bad)
+    assert m["status"] == bm.NOT_VERIFIED and m["chi_Y4"] is None, bad
 
-# 5. missing or inconsistent run outputs stop the build
+# 5. different bases cannot be compared
+m, _, _ = build(ind=ind_with(basis=["A", "C", "B"]))
+assert m["status"] == bm.NOT_VERIFIED and "different bases" in " ".join(m["open_items"])
+
+# 6. a typed chi in the Sage file is recorded as not used and appears nowhere else
+m, _, _ = build(sage_checks={"chi_Y4": 1056})
+assert "chi_Y4" in m["typed_values_not_used"] and "1056" not in json.dumps({k: v for k, v in m.items() if k != "typed_values_not_used"})
+
+# 7. missing or inconsistent Sage outputs stop the build
 expect_error(with_summary=False)
 expect_error(summary_nonzero=7)
-expect_error(tensor_entries={"A,A,B,D": 1})
+expect_error(sage_entries={"A,A,B,D": 1})
 
-# 6. a tampered manifest fails the gate's hash check
-m, tex, _ = build(chow_status=bm.CHOW_COMPLETE, final=table("run_intersectionnumbers_ewx.wls", NATIVE_VALUES), wolfram=WOLFRAM_OK)
+# 8. a tampered manifest fails the gate's hash check
+m, tex, _ = build()
 m["nonzero_quadruple_intersections"] = 1847
 with tempfile.TemporaryDirectory() as d:
     assert "payload_hash mismatch" in gate_failures(m, tex, Path(d))

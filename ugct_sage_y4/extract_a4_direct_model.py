@@ -21,10 +21,11 @@ def emit(o):
 if not PKG.exists():
     emit({'status':'A4_MODEL_EXTRACT_NOT_RUN','reason':'sources/IntersectionNumbers.m missing'}); raise SystemExit(0)
 
-# Direct A4 specialization of the source formula algebraDivisors[{a,r},index]
-gens=[['2*L','3*L','s[1]'],['3*L - e[1]','e[1]'],['2*L - e[1]','e[2]'],['3*L - e[1] - e[2]','e[3]']]
+# Direct A4 specialization of the source formulas generators[{a,4}] (genMake/addCenter, starting from
+# {e[0]+2L, e[0]+3L, e[0]}), hypersurface[{a,4}] (algebraHS) and algebraDivisors[{a,r},index]
+gens=[['e[0] + 2*L','e[0] + 3*L','s[1]'],['e[0] + 3*L - e[1]','e[1]'],['e[0] + 2*L - e[1]','e[2]'],['e[0] + 3*L - e[1] - e[2]','e[3]']]
 divs=['e[1] - e[2]','e[3] - e[4]','e[4]','e[2] - e[3]']
-hs='3*e[0] + 6*L - (e[1] + e[2] + e[3] + e[4])'
+hs='3*e[0] + 6*L - 2*e[1] - e[2] - e[3] - e[4]'
 obj={
  'schema_version':'INTERSECTIONNUMBERS_A4_MODEL_V2_DIRECT_SOURCE',
  'status':'INTERSECTIONNUMBERS_A4_MODEL_EXTRACTED',

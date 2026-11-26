@@ -289,8 +289,12 @@ full_report = {
     "checks": {
         "A4_cartan": True,
         "K_dP8_square_equals_1": K_square() == 1,
-        "chi_Y4": 1056 if all_reduced else None,
-        "tadpole": 44 if all_reduced else None,
+        # chi(Y4) is not computed by this script. It used to write the constant 1056 (tadpole 44) here; the
+        # construction gives 3048 (S = the section with normal bundle K_dP8), computed with the tensor by
+        # independent_y4_pushforward.py and matching the SU(5) formula of EJK arXiv:1703.00905 Table 9.
+        "chi_Y4": None,
+        "tadpole": None,
+        "chi_Y4_source": "not computed here; see ugct_sage_y4/independent_y4_pushforward.py",
         "total_symmetric_multisets_degree4": total_multisets,
         "nonzero_exported": len(nonzero),
         "zero_multisets": zero,

@@ -96,6 +96,12 @@ jobs:
         working-directory: ugct_sage_y4
         run: sage -python run_chow_tensor.sage
 
+      - name: Test the independent Y4 computation
+        run: python3 ugct_sage_y4/test_independent_y4_pushforward.py
+
+      - name: Compute the Y4 tensor independently (exact pushforward, no code shared with the Sage pipeline)
+        run: python3 ugct_sage_y4/independent_y4_pushforward.py ugct_sage_y4/data/y4_independent_tensor.json
+
       - name: Test the Y4 manifest builder
         run: python3 ugct_sage_y4/test_build_y4_tensor_manifest.py
 

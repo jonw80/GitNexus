@@ -115,6 +115,8 @@ with tempfile.TemporaryDirectory() as d:
     assert strict(root, "proton_cp", rec) == [], strict(root, "proton_cp", rec)
     assert abs(rec["c_p_interval"]["lower"] - (rec["c_p"] - 2 * rec["c_p_sigma"])) < 1e-12 and abs(rec["c_p"] - 2.776) < 1e-3
     assert abs(rec["comparison"]["ratio"] - 2.81) < 0.01 and rec["inputs"][-1]["path"] == bf.PROTON_DECLARED
+    assert "freeze gate G8" in rec["findings"][-1] and [d["name"] for d in rec["theorem_dependencies"]] == \
+        ["FLAG 2024 averages of Lambda_MSbar"]
     assert sidecars.referee_failures(tex) == [], sidecars.referee_failures(tex)
     assert sidecars.check(root, "proton_cp")["ok"], sidecars.check(root, "proton_cp")
     for bad in ({"scheme": "MSbar_nf6", "declared_by": "x", "declared_on": "y", "statement": "z"}, {"scheme": "V_nf3"}):
@@ -137,8 +139,35 @@ with tempfile.TemporaryDirectory() as d:
     (root / bf.UPLIFT_TYPED).write_text(json.dumps(typed))
     assert "not symmetric" in expect_build_error(lambda: bf.build_uplift(root, ENV, None))
 
+# 11. line-bundle cohomology on Hirzebruch surfaces: known values, Riemann-Roch and Serre duality on a grid
+hc = bf.hirzebruch_cohomology
+assert hc(1, 0, 0) == (1, 0, 0) and hc(1, -2, -3) == (0, 0, 1) and hc(3, 1, 3) == (5, 0, 0)    # O, K_F1, C0 + n f
+assert hc(2, 1, 0) == (1, 1, 0) and hc(1, 0, -2) == (0, 1, 0) and hc(1, -2, -2) == (0, 0, 0)  # C0 on F_2, O(-2f), K_B3|F
+for n in range(0, 4):
+    for a in range(-5, 6):
+        for b in range(-6, 7):
+            h0, h1, h2 = hc(n, a, b)
+            assert h0 - h1 + h2 == (a + 1) * (b + 1) - n * a * (a + 1) // 2, (n, a, b)      # Riemann-Roch on F_n
+            assert (h0, h1, h2) == tuple(reversed(hc(n, -2 - a, -(n + 2) - b))), (n, a, b)  # Serre duality, K - L
+
 with tempfile.TemporaryDirectory() as d:
-    # 11. without this run's Y4 tensor the Y4-derived numbers are absent and the records say so
+    # 12. rigidity of a vertical divisor over F_1, cross-checked against the tensor; a tensor that disagrees is refused
+    y4e = copy.deepcopy(FAKE_Y4)
+    y4e["basis"] = ["E1", "A"]
+    y4e["quadruple_intersections"] = {"A,A,A,A": "-8"}
+    y4e["c2_pairings"] = {"E1,E1": "-24", "A,A": "-16"}
+    root = make_root(Path(d), y4=y4e)
+    rec = bf.build_pfaffian(root, ENV, bf.load_y4(root))[0]
+    r = rec["results"]["vertical_divisor_rigidity"]["E1"]
+    assert r["h0p"] == [1, 0, 0, 0] and r["rigid"] and r["chi_from_tensor"] == "1" and r["c2_D2_from_base"] == -24
+    assert all(rec["checks"].values()) and "charged zero modes" in rec["open_items"][-1]
+    bad = copy.deepcopy(y4e)
+    bad["quadruple_intersections"]["E1,E1,E1,E1"] = "-24"
+    bad["c2_pairings"]["E1,E1"] = "0"
+    assert "disagrees with this run's tensor" in expect_build_error(lambda: bf.build_pfaffian(root, ENV, bad))
+
+with tempfile.TemporaryDirectory() as d:
+    # 13. without this run's Y4 tensor the Y4-derived numbers are absent and the records say so
     root = make_root(Path(d), y4=None)
     out = bf.build_all(root, {}, only=["pfaffian", "cosmological_constant"], height=HEIGHT)
     assert set(out) == {"pfaffian", "uplift", "cosmological_constant"}

@@ -254,13 +254,18 @@ def build_proton(root: Path, env: dict) -> tuple[dict, str]:
     inputs = [fr.input_entry(root, PROTON_MODULE, "published-value snapshot and computation"),
               fr.input_entry(root, PROTON_TYPED, "manuscript's c_p interval, compared")]
     rec = base("proton_cp", env)
+    flag_dep = {"name": "FLAG 2024 averages of Lambda_MSbar", "source": "FLAG Review 2024, arXiv:2411.04268, Table 2",
+                "hypotheses": "lattice results admitted by FLAG's continuum-limit, finite-volume and renormalization criteria",
+                "hypothesis_check_map": "lattice_controls_basis",
+                "conclusion_used": "Lambda_MSbar for N_f = 3, 4, 5 as published"}
+    conversion_dep = {"name": "Lambda ratio between schemes",
+                      "source": "Celmaster and Gonsalves, Phys. Rev. D 20 (1979) 1420",
+                      "hypotheses": "alpha' = alpha (1 + a1 alpha/(4 pi) + ...)",
+                      "hypothesis_check_map": "a1 = 31/3 - 10 n_f/9 (Fischler; Billoire)",
+                      "conclusion_used": "Lambda'/Lambda = exp(a1/(2 beta0)) exactly"}
     rec.update({"per_scheme": table, "Lambda_UGCT_MeV": lam_ugct, "Lambda_UGCT_sigma_MeV": lam_ugct_s,
                 "lattice_input_snapshot_sha256": mod.snapshot_sha256(), "findings": findings,
-                "theorem_dependencies": [{"name": "Lambda ratio between schemes",
-                                          "source": "Celmaster and Gonsalves, Phys. Rev. D 20 (1979) 1420",
-                                          "hypotheses": "alpha' = alpha (1 + a1 alpha/(4 pi) + ...)",
-                                          "hypothesis_check_map": "a1 = 31/3 - 10 n_f/9 (Fischler; Billoire)",
-                                          "conclusion_used": "Lambda'/Lambda = exp(a1/(2 beta0)) exactly"}]})
+                "theorem_dependencies": [flag_dep, conversion_dep]})
     declared = root / PROTON_DECLARED
     if not declared.exists():
         rec.update({
@@ -295,6 +300,8 @@ def build_proton(root: Path, env: dict) -> tuple[dict, str]:
                          f"declared_on and statement; missing or unknown: {missing or dec.get('scheme')}")
     r = keys[dec["scheme"]]
     c, s = r["c_p"], r["c_p_sigma"]
+    if not dec["scheme"].startswith("V_"):
+        rec["theorem_dependencies"] = [flag_dep]
     rec.update({
         "status": "VERIFIED_PROTON_CP_LATTICE_QCD", "scope_category": "VERIFIED",
         "declared_scheme": dec, "scheme": r["scheme"],
@@ -319,6 +326,10 @@ def build_proton(root: Path, env: dict) -> tuple[dict, str]:
     })
     rec["findings"].append(f"With the declared scheme ({r['scheme']}) the prediction m_p = c_p M_Pl e^-44 = "
                            f"{c * lam_ugct:.0f} MeV against the measured {mp:.3f} MeV.")
+    if dec.get("sealed_before_comparison") is not True:
+        rec["findings"].append(f"The scheme was declared on {dec['declared_on']} by {dec['declared_by']}, after the "
+                               "per-scheme comparison with M_Pl e^-44 was known, so that comparison does not meet the "
+                               "freeze gate G8; what this record certifies is the published c_p in the declared scheme.")
     fr.finalize(rec)
     return rec, proton_verified_tex(rec, r, dec)
 
@@ -406,6 +417,47 @@ def chi_od_table(y4: dict) -> dict:
     return out
 
 
+def p1_cohomology(d: int) -> tuple[int, int]:
+    """(h^0, h^1) of O(d) on P^1."""
+    return max(d + 1, 0), max(-d - 1, 0)
+
+
+def hirzebruch_cohomology(n: int, a: int, b: int) -> tuple[int, int, int]:
+    """(h^0, h^1, h^2) of O(a C0 + b f) on the Hirzebruch surface F_n (C0^2 = -n, C0.f = 1, f^2 = 0).
+    For a >= 0, pi_* O(a C0 + b f) = sum_{k=0..a} O(b - k n) on P^1 and R^1 pi_* = 0; for a = -1 every group vanishes;
+    for a <= -2 Serre duality with K = -2 C0 - (n + 2) f reduces to the first case."""
+    if a >= 0:
+        parts = [p1_cohomology(b - k * n) for k in range(a + 1)]
+        return sum(x[0] for x in parts), sum(x[1] for x in parts), 0
+    if a == -1:
+        return 0, 0, 0
+    d0, d1, d2 = hirzebruch_cohomology(n, -2 - a, -(n + 2) - b)
+    return d2, d1, d0
+
+
+# The basis divisors E1..E8 of the Y4 tensor are the pullbacks of the exceptional curves e_i of S = dP8 (e_i^2 = -1,
+# K_S.e_i = -1) through B3 = P(O + K_S) -> S: vertical divisors over F_i = P(O + K_S|e_i), a Hirzebruch surface F_1.
+VERTICAL_OVER_CURVES = {f"E{i}": {"curve": f"e_{i}", "self_intersection": -1, "K_S_degree": -1} for i in range(1, 9)}
+
+
+def vertical_rigidity(name: str, curve: dict, d4: Fraction, c2d2: Fraction) -> dict:
+    """h^{0,p} of the vertical divisor D = pi^{-1}(F) over F = P(O + K_S|c) for a smooth rational curve c in S, from the
+    Leray spectral sequence with pi_* O = O and R^1 pi_* O = K_B3 restricted to F:
+        h^{0,p}(D) = h^p(F, O_F) + h^{p-1}(F, K_B3|F),  K_B3|F = K_F - N_F = -2 C0 - (n + 2 + s) f,
+    with n = |K_S.c|, s = c^2 and N_F = s f. Cross-checks against the tensor: D^4 = 0, c2.D^2 = 12 c1(B3).F.F = 24 s
+    and chi(O_D) = sum (-1)^p h^{0,p}."""
+    n, s_ = abs(curve["K_S_degree"]), curve["self_intersection"]
+    kb = (-2, -(n + 2 + s_))
+    o_f = hirzebruch_cohomology(n, 0, 0)
+    h = hirzebruch_cohomology(n, *kb)
+    h0p = [o_f[0], o_f[1] + h[0], o_f[2] + h[1], h[2]]
+    chi = h0p[0] - h0p[1] + h0p[2] - h0p[3]
+    return {"base_surface": f"F_{n} = P(O + K_S|{curve['curve']}) in B3", "K_B3_on_F_C0_f": list(kb),
+            "h0p": h0p, "rigid": h0p == [1, 0, 0, 0], "chi_from_h0p": chi,
+            "chi_from_tensor": str(-(d4 + c2d2) / 24), "D4_tensor": str(d4), "c2_D2_tensor": str(c2d2),
+            "c2_D2_from_base": 24 * s_}
+
+
 def build_pfaffian(root: Path, env: dict, y4) -> tuple[dict, str]:
     typed = json.loads((root / PFAFFIAN_TYPED).read_text())
     fb = typed.get("finite_block") or {}
@@ -433,19 +485,49 @@ def build_pfaffian(root: Path, env: dict, y4) -> tuple[dict, str]:
                    "formula": "chi(O_D) = -(D^4 + c2(Y4) D^2)/24 (Riemann-Roch on a Calabi-Yau fourfold)"}
         findings.append(f"From this run's Y4 tensor, chi(O_D) = 1 (Witten's necessary condition for an instanton "
                         f"contribution) holds for {', '.join(ones)}; it is necessary, not sufficient.")
-        open_items.append("Compute h^{0,i}(D) for the candidate divisors; chi(O_D) = 1 does not by itself make D rigid.")
         inputs.append(fr.input_entry(root, Y4_TENSOR, "this run's Y4 intersection tensor"))
         if not integral:
             raise BuildError("pfaffian: chi(O_D) is not an integer for some basis divisor")
+        q = {tuple(k.split(",")): Fraction(v) for k, v in y4["quadruple_intersections"].items()}
+        c2 = {tuple(k.split(",")): Fraction(v) for k, v in y4["c2_pairings"].items()}
+        rig = {d: vertical_rigidity(d, VERTICAL_OVER_CURVES[d], q.get((d, d, d, d), Fraction(0)),
+                                    c2.get((d, d), Fraction(0))) for d in y4["basis"] if d in VERTICAL_OVER_CURVES}
+        if rig:
+            results["vertical_divisor_rigidity"] = rig
+            consistent = all(r["D4_tensor"] == "0" and r["c2_D2_tensor"] == str(r["c2_D2_from_base"])
+                             and r["chi_from_tensor"] == str(r["chi_from_h0p"]) for r in rig.values())
+            checks["E_i: D^4 = 0, c2.D^2 = 12 c1(B3).F.F and chi(O_D) = sum (-1)^p h^{0,p}, from the tensor"] = consistent
+            if not consistent:
+                raise BuildError("pfaffian: the vertical-divisor geometry disagrees with this run's tensor: "
+                                 + json.dumps(rig))
+            rigid = [d for d, r in rig.items() if r["rigid"]]
+            findings.append(
+                f"{', '.join(rigid)} are the vertical divisors over the surfaces F_i = P(O + K_S|e_i) = F_1 of B3. With "
+                "R^1 pi_* O = K_B3 (Leray), h^{0,p}(E_i) = h^p(O_F) + h^{p-1}(F, K_B3|F) = (1, 0, 0, 0), because "
+                "K_B3|F = -2 C0 - 2 f has no cohomology: each is rigid in Witten's sense, assuming the fibration over F_i "
+                "is flat with E_i smooth. The same holds over each of the 240 (-1)-curves of dP8. Each F_i meets the GUT "
+                "divisor along e_i, so these instantons intersect the SU(5) stack. Z and C1-C4 also have chi = 1 but are "
+                "not vertical, so they are not D3-instanton candidates in the F-theory limit.")
+            open_items.append("Count the charged zero modes on the curves e_i where F_i meets the GUT divisor; they "
+                              "depend on the gauge flux restricted to e_i, which the model does not specify.")
+        else:
+            open_items.append("Compute h^{0,i}(D) for the candidate divisors; chi(O_D) = 1 does not by itself make D "
+                              "rigid.")
     else:
         open_items.append(y4_missing_item())
     rec.update({"status": "PFAFFIAN_NORMALIZATION_OPEN", "scope_category": "OPEN",
                 "zero_modes_removed": False, "collar_independence_verified": False, "pfaffian_interval": None,
                 "results": results, "checks": checks, "findings": findings, "open_items": open_items,
                 "inputs": inputs,
-                "derivations": [{"name": "chi_O_D", "formula": "-(D^4 + c2 D^2)/24", "script": COMPUTED_BY,
-                                 "inputs": [Y4_TENSOR], "output_field": "results.chi_O_D",
-                                 "rounding": "exact rational arithmetic"}] if y4 else [],
+                "derivations": ([{"name": "chi_O_D", "formula": "-(D^4 + c2 D^2)/24", "script": COMPUTED_BY,
+                                  "inputs": [Y4_TENSOR], "output_field": "results.chi_O_D",
+                                  "rounding": "exact rational arithmetic"}]
+                                + ([{"name": "vertical_divisor_rigidity",
+                                     "formula": "h^{0,p}(D) = h^p(O_F) + h^{p-1}(F, K_B3|F) on F_1",
+                                     "script": COMPUTED_BY, "inputs": [Y4_TENSOR],
+                                     "output_field": "results.vertical_divisor_rigidity",
+                                     "rounding": "exact integer arithmetic"}] if results.get("vertical_divisor_rigidity")
+                                   else [])) if y4 else [],
                 "replaces": "a typed VERIFIED certificate with Pfaffian interval [0.997, 1.003]"})
     fr.finalize(rec)
     rows = [f"\\item ${fr.tex_escape(d)}$: $D^4={v['D4']}$, $c_2D^2={v['c2_D2']}$, $\\chi(\\mathcal O_D)={v['chi_O_D']}$."

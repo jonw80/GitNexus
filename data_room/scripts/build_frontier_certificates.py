@@ -104,7 +104,7 @@ def prime_race_density(height: int) -> dict:
     weights = pari("(Z) -> vector(#Z, k, 2/sqrt(1/4 + Z[k]^2))")
     intervals = 26
     integrate = pari("(W, S, J) -> 1/2 + sum(j = 0, J - 1, intnum(t = j*Pi, (j+1)*Pi, "
-                     "sinc(t) * prod(k = 1, #W, besselj(0, t*W[k])) * exp(-S*t^2)))/Pi")
+                     "if(t, sin(t)/t, 1) * prod(k = 1, #W, besselj(0, t*W[k])) * exp(-S*t^2)))/Pi")
 
     def s_tail(T):
         return (math.log(q * T / (2 * math.pi)) + 1) / (2 * math.pi * T)

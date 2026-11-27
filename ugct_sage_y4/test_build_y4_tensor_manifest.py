@@ -124,6 +124,8 @@ assert m["nonzero_quadruple_intersections"] == 3 and m["tensor_file"] == bm.INDE
 assert m["recorded_not_required"]["chow_input_status"] == PARTIAL_CHOW
 assert m["source_workflow_run_id"] == "123" and m["source_commit"] == "abc123" and len(m["artifact_sha256"]) == 64
 assert m["payload_hash"] == gate.canonical_hash(m) and len(tex.encode()) > 500
+assert m["scope_category"] == "VERIFIED" and m["computed_by"] == "ugct_sage_y4/build_y4_tensor_manifest.py"
+assert {i["path"]: i["sha256"] for i in m["inputs"]} == m["files"] and "Scope: \\texttt{VERIFIED}" in tex
 
 # 2. keys in another order and equal rationals written differently still agree
 m, _, fails = build(sage_entries={"B,A,C,A": "4/2", "C,B,B,A": "-1.0", "C,C,C,C": -8})
@@ -134,6 +136,7 @@ m, _, fails = build(sage_entries={"A,A,B,C": 2, "A,B,B,C": "-1", "C,C,C,C": 0})
 assert m["status"] == bm.NOT_VERIFIED and m["tensor_comparison"]["mismatch_count"] == 1
 assert m["tensor_comparison"]["mismatch_sample"][0] == {"monomial": "C,C,C,C", "sage": "0", "independent": "-8"}
 assert "differ on 1 of 15 monomials" in m["open_items"][0] and "tensor verified flag required" in fails
+assert m["scope_category"] == "OPEN" and m["fully_certified"] is False
 
 # 4. the independent computation missing, failing a check, or reporting failures -> not verified
 m, _, _ = build(ind=None)

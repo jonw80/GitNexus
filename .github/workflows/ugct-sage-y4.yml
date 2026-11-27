@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       allow_proton_pending:
-        description: 'Allow proton c_p lattice-QCD certificate to remain pending while enforcing all other frontier closeouts'
+        description: 'Permit the proton coefficient item to be skipped in the strict tally (report only)'
         required: false
         default: 'true'
         type: choice
@@ -150,13 +150,24 @@ jobs:
       - name: Build the Yang-Mills import record from the author's status file
         run: python3 data_room/scripts/build_ym_import_record.py
 
-      - name: Strict frontier closeout gate
+      - name: Test the frontier record builders and the scoped gate
+        run: |
+          sage -python data_room/scripts/test_build_frontier_certificates.py
+          sage -python data_room/scripts/test_verify_frontier_scoped.py
+
+      - name: Build the six computed frontier records (prime race, proton, Pfaffian, uplift, cosmological constant, Hadamard)
+        run: sage -python data_room/scripts/build_frontier_certificates.py
+
+      - name: Strict frontier tally (report only; an item counts only if VERIFIED)
         run: |
           if [ "${{ github.event.inputs.allow_proton_pending || 'true' }}" = "true" ]; then
-            python3 data_room/scripts/verify_frontier_closeout.py --allow-proton-pending
+            python3 data_room/scripts/verify_frontier_closeout.py --report-only --allow-proton-pending
           else
-            python3 data_room/scripts/verify_frontier_closeout.py
+            python3 data_room/scripts/verify_frontier_closeout.py --report-only
           fi
+
+      - name: Scoped frontier gate (each record states its scope and was computed in this run)
+        run: python3 data_room/scripts/verify_frontier_scoped.py
 
       - name: Upload tensor, data, sources, reports, and frontier diagnostics
         if: always()

@@ -285,7 +285,10 @@ def build(root: Path, env: dict) -> tuple[dict, str]:
     manifest = {
         "schema_version": "UGCT_Y4_TENSOR_MANIFEST_FROM_RUN_V2",
         "status": VERIFIED if verified else NOT_VERIFIED,
+        "scope_category": "VERIFIED" if verified else "OPEN",
         "fully_certified": verified,
+        "computed_by": "ugct_sage_y4/build_y4_tensor_manifest.py",
+        "inputs": [{"path": rel, "sha256": h, "role": "run output or input"} for rel, h in present],
         "full_chamber_specific_tensor_verified": verified,
         "nonzero_quadruple_intersections": len(certified_entries),
         "total_degree4_monomials": total,
@@ -362,7 +365,7 @@ def build(root: Path, env: dict) -> tuple[dict, str]:
         f"{'' if tensor_comparison['passed'] or tensor_comparison['mismatch_count'] is None else ' (' + str(tensor_comparison['mismatch_count']) + ' monomials differ)'}.",
         f"\\item Recorded, not required: resolved ambient Chow input status \\texttt{{{tt(chow_status)}}}; "
         f"Wolfram \\texttt{{{tt((wolfram or {}).get('status', 'MISSING'))}}}; Mathics \\texttt{{{tt((mathics or {}).get('status', 'MISSING'))}}}.",
-        f"\\item Status: \\texttt{{{tt(manifest['status'])}}}.",
+        f"\\item Scope: \\texttt{{{manifest['scope_category']}}}. Status: \\texttt{{{tt(manifest['status'])}}}.",
         r"\end{itemize}",
     ]
     if open_items:

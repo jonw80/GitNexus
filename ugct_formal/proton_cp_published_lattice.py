@@ -62,7 +62,8 @@ def v_scheme_ratio(nf):
     return math.exp(a1 / (2.0 * beta0))
 
 
-def main(out=None):
+def compute():
+    """The per-scheme rows, Lambda_UGCT = M_Pl e^-44 (MeV, with its sigma) and the check failures."""
     failures = []
     mp, mps = SNAPSHOT["m_p_MeV"]["value"], SNAPSHOT["m_p_MeV"]["sigma"]
     mpl, mpls = SNAPSHOT["M_Pl_GeV"]["value"] * 1e3, SNAPSHOT["M_Pl_GeV"]["sigma"] * 1e3       # MeV
@@ -82,16 +83,24 @@ def main(out=None):
         lam = SNAPSHOT["Lambda_MSbar_MeV"][nf]
         c, s, iv = ratio_interval(mp, mps, lam["value"], lam["sigma"])
         pull = (lam_ugct - lam["value"]) / math.hypot(lam["sigma"], lam_ugct_s)
-        rows.append({"scheme": f"MS-bar, N_f = {nf}", "Lambda_MeV": f"{lam['value']:.0f}({lam['sigma']:.0f})",
+        rows.append({"key": f"MSbar_nf{nf}", "Lambda_value_MeV": lam["value"], "Lambda_sigma_MeV": lam["sigma"],
+                     "scheme": f"MS-bar, N_f = {nf}", "Lambda_MeV": f"{lam['value']:.0f}({lam['sigma']:.0f})",
                      "c_p": c, "c_p_sigma": s, "c_p_interval_1sigma": iv,
                      "Lambda_UGCT_over_Lambda": lam_ugct / lam["value"], "pull_sigma": pull})
     lam3 = SNAPSHOT["Lambda_MSbar_MeV"]["3"]
     rv = v_scheme_ratio(3)
     c, s, iv = ratio_interval(mp, mps, lam3["value"] * rv, lam3["sigma"] * rv)
-    rows.append({"scheme": "static potential (V), N_f = 3", "Lambda_MeV": f"{lam3['value'] * rv:.0f}({lam3['sigma'] * rv:.0f})",
+    rows.append({"key": "V_nf3", "Lambda_value_MeV": lam3["value"] * rv, "Lambda_sigma_MeV": lam3["sigma"] * rv,
+                 "scheme": "static potential (V), N_f = 3", "Lambda_MeV": f"{lam3['value'] * rv:.0f}({lam3['sigma'] * rv:.0f})",
                  "c_p": c, "c_p_sigma": s, "c_p_interval_1sigma": iv,
                  "Lambda_UGCT_over_Lambda": lam_ugct / (lam3["value"] * rv),
                  "pull_sigma": (lam_ugct - lam3["value"] * rv) / math.hypot(lam3["sigma"] * rv, lam_ugct_s)})
+    return rows, lam_ugct, lam_ugct_s, failures
+
+
+def main(out=None):
+    mp = SNAPSHOT["m_p_MeV"]["value"]
+    rows, lam_ugct, lam_ugct_s, failures = compute()
     lo, hi = SNAPSHOT["manuscript"]["lattice_presentation_c_p"]
     fits = [r["scheme"] for r in rows if r["c_p_interval_1sigma"][0] <= hi and r["c_p_interval_1sigma"][1] >= lo]
 

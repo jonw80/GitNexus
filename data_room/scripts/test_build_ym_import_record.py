@@ -55,9 +55,13 @@ def expect_error(st):
     raise AssertionError("malformed status file accepted")
 
 
-# 1. the recorded status (2026-11-26): conditional, every flag false, no hash; the gate rejects it with reasons
+# 1. the recorded status (2026-11-26): two statements open and one lattice-only, so scope OPEN; every flag false, no
+#    hash; the gate rejects it with reasons
 rec, tex, fail = build(CURRENT)
-assert rec["status"] == ym.CONDITIONAL and rec["fully_certified"] is False and rec["companion_volume_sha256"] is None
+assert rec["status"] == ym.OPEN and rec["scope_category"] == "OPEN" and rec["hypotheses"] == []
+assert rec["fully_certified"] is False and rec["companion_volume_sha256"] is None
+assert rec["computed_by"] == ym.COMPUTED_BY and rec["inputs"][0]["path"] == ym.STATUS_FILE
+assert rec["source_workflow_run_id"] == "local" and "Scope: \\texttt{OPEN}" in tex
 assert not any(rec[f] for _, f in ym.GATES), [rec[f] for _, f in ym.GATES]
 assert {g["status"] for g in rec["gates"].values()} == {"conditional", "lattice_only", "open"}
 assert len(rec["open_items"]) == 6 and rec["payload_hash"] == gate.canonical_hash(rec)
@@ -73,17 +77,23 @@ good["companion_volume"]["file"] = "data_room/primary/ym/gzym.pdf"
 good["independent_verification"] = [{"by": "referee", "scope": "all four statements", "evidence": "report"}]
 rec, _, fail = build(good, volume_bytes=b"volume")
 assert rec["status"] == ym.VERIFIED and rec["fully_certified"] and fail == [], (rec["open_items"], fail)
-assert rec["companion_volume_sha256"] == hashlib.sha256(b"volume").hexdigest()
+assert rec["scope_category"] == "VERIFIED" and rec["companion_volume_sha256"] == hashlib.sha256(b"volume").hexdigest()
+assert [i["path"] for i in rec["inputs"]] == [ym.STATUS_FILE, "data_room/primary/ym/gzym.pdf"]
 
-# 3. any one statement short of proved, no file, no verification, or a hash mismatch -> conditional
-for name, _ in ym.GATES:
-    for status in ("conditional", "lattice_only", "open"):
+# 3. a statement short of proved: "conditional" -> scope CONDITIONAL with its assumptions as hypotheses;
+#    "lattice_only" or "open" -> scope OPEN; no file, no verification or a hash mismatch -> CONDITIONAL on the volume
+for name, flag in ym.GATES:
+    for status, expect in (("conditional", ym.CONDITIONAL), ("lattice_only", ym.OPEN), ("open", ym.OPEN)):
         st = copy.deepcopy(good)
         st["gates"][name]["status"] = status
-        assert build(st, volume_bytes=b"volume")[0]["status"] == ym.CONDITIONAL, (name, status)
+        rec = build(st, volume_bytes=b"volume")[0]
+        assert rec["status"] == expect and rec["fully_certified"] is False, (name, status)
+        if status == "conditional":
+            assert rec["scope_category"] == "CONDITIONAL" and rec["hypotheses"][0].startswith(flag), rec["hypotheses"]
 st = copy.deepcopy(good)
 st["independent_verification"] = []
-assert build(st, volume_bytes=b"volume")[0]["status"] == ym.CONDITIONAL
+rec = build(st, volume_bytes=b"volume")[0]
+assert rec["status"] == ym.CONDITIONAL and "companion volume's proofs" in rec["hypotheses"][-1]
 assert build(good)[0]["status"] == ym.CONDITIONAL                                   # file named but not committed
 st = copy.deepcopy(good)
 st["companion_volume"]["sha256"] = "0" * 64

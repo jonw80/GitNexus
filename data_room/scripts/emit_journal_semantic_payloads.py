@@ -1,178 +1,100 @@
 #!/usr/bin/env python3
+"""Add the journal fields to each frontier record, taken from the record itself.
+
+journal_readiness_report.py reads, for each record, the lists source_artifacts, constant_derivations,
+theorem_dependencies, lemma_proof_map and dependency_dag, the fields journal_derivation_status and journal_gaps, and
+the TeX sections Source artifact table, Derivation of constants, Imported theorem dependencies, Proof of Lemma and
+Rounding and reproducibility. Until 2026-11-27 this script typed those fields in, with generated derivation scripts
+that re-emitted the typed numbers. Now each one comes from what the record's builder wrote:
+
+  source_artifacts           <- inputs
+  constant_derivations       <- derivations
+  theorem_dependencies       <- theorem_dependencies
+  lemma_proof_map            <- the lemma environments of a VERIFIED record's sidecar
+  dependency_dag             <- inputs -> item -> journal_readiness_report
+  journal_derivation_status  SOURCE_BACKED_COMPLETE only for a VERIFIED record with no open items
+  journal_gaps               <- open_items, and the hypotheses of a CONDITIONAL record
+
+Running it twice gives the same files. A missing record is reported and skipped.
+Run from the repository root:  python3 data_room/scripts/emit_journal_semantic_payloads.py
+"""
 from __future__ import annotations
-import hashlib, json
+
+import json
+import re
+import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-REPO = ROOT.parent
-DATA = ROOT / 'data'
-PROOFS = ROOT / 'proofs'
-SRC = ROOT / 'source_artifacts'
-SCRIPTS = ROOT / 'scripts'
-DATA.mkdir(parents=True, exist_ok=True)
-PROOFS.mkdir(parents=True, exist_ok=True)
-SRC.mkdir(parents=True, exist_ok=True)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import frontier_records as fr  # noqa: E402
 
-ITEMS = {
- 'pfaffian': {
-   'cert':'pfaffian_normalization_certificate.json','proof':'pfaffian_local_reduction_theorem.tex','source':'pfaffian_operator_inputs.json','script':'derive_pfaffian_interval.py','output':'pfaffian_interval',
-   'formula':'A_D interval = finite Berezin/Pfaffian central enclosure plus collar-variation and spectral-tail radii',
-   'inputs':{'finite_pfaffian_interval':[0.999000000000,1.001000000000],'collar_variation_radius':2.1e-12,'spectral_tail_radius':4.8e-13,'zero_mode_count':0,'berezin_integral_rank':18},
-   'deps':[('Quillen determinant line','Bismut-Freed/Quillen determinant formalism','closed elliptic operator, fixed orientation, zero-mode removal','operator_domain, determinant_line_convention, zero_modes_removed','identifies the primed Pfaffian normalization convention')],
-   'lemmas':['Zero-mode removal','Collar anomaly control','Spectral tail'],
-   'gaps':['Replace finite_pfaffian_interval input by a reproduced determinant/Pfaffian matrix export for the actual M5/D-instanton operator.','Supply full heat-kernel/zeta-tail derivation rather than a recorded spectral-tail radius.','Supply a primary Bismut-Zhang or equivalent family-index normalization proof for the CY4 instanton family.']},
- 'uplift': {
-   'cert':'uplift_hessian_certificate.json','proof':'uplift_positive_hessian_theorem.tex','source':'uplift_interval_inputs.json','script':'derive_uplift_hessian_bounds.py','output':'V_phys_interval',
-   'formula':'Interval Newton/Krawczyk inclusion plus Hessian lower bound and boundary gap on the compact Kähler window',
-   'inputs':{'gradient_norm_upper':2.0e-10,'hessian_lambda_min_lower':0.031,'boundary_potential_gap_lower':1.7e-15,'V_phys_interval':[1.04e-122,1.38e-122],'compact_window':{'volume':[118.0,146.0],'g_s':[0.078,0.118]}},
-   'deps':[('Interval Krawczyk theorem','Moore-Krawczyk interval Newton theorem','C1 map, interval Jacobian inverse enclosure, self-map box','gradient_norm_upper, hessian_lambda_min_lower, krawczyk_radius_upper','certifies existence and uniqueness of the critical point')],
-   'lemmas':['Krawczyk inclusion','Positive Hessian','Boundary exclusion'],
-   'gaps':['Replace summarized V_eff inputs by the full symbolic effective potential with every alpha-prime, loop, warp, and backreaction term.','Emit the exact interval Hessian matrix, not only the eigenvalue lower bound.','Prove or explicitly bound the higher-order backreaction remainder over the whole compact window.']},
- 'cosmological_constant': {
-   'cert':'cosmological_constant_error_budget.json','proof':'cosmological_constant_interval_theorem.tex','source':'cosmological_constant_inputs.json','script':'derive_rho_lambda_interval.py','output':'rho_lambda_interval',
-   'formula':'rho_Lambda interval = outward-rounded sum of F-term, alpha-prime, loop, warp, backreaction, and KK remainder intervals',
-   'inputs':{'central_value':1.21e-122,'term_radii':[1.1e-124,7.0e-125,6.5e-125,1.2e-124,2.0e-124,3.0e-125],'rho_lambda_interval':[1.04e-122,1.38e-122]},
-   'deps':[('Interval arithmetic enclosure','standard interval arithmetic inclusion theorem','closed input intervals and outward rounding','error_budget_terms, all_uncertainties_propagated','encloses all allowed summed vacuum energies')],
-   'lemmas':['Dependency closure','Outward-rounded enclosure','No hidden scalar tuning'],
-   'gaps':['Tie every interval term to a primary upstream computation rather than a recorded radius.','Document the exact topological formula and all loop coefficients used for the meV scale.','Keep status dependent on uplift until the uplift backreaction proof is source-complete.']},
- 'prime_race': {
-   'cert':'prime_race_density_certificate.json','proof':'prime_race_density_theorem.tex','source':'prime_race_inputs.json','script':'derive_prime_race_density.py','output':'density_delta_4_3_1_interval',
-   'formula':'density lower bound = finite-window bias contribution minus certified tail mass',
-   'inputs':{'finite_window_density_interval':[0.50000051,0.50000504],'tail_bound_upper':1.4e-7,'density_interval':[0.50000037,0.50000490],'kp_norm_bound':0.71},
-   'deps':[('Kotecky-Preiss criterion','Kotecky and Preiss abstract polymer expansion','polymer activity norm below one','kp_norm_bound, polymer_hypotheses_verified','absolute convergence and cumulant tail control')],
-   'lemmas':['Spectral identification','Polymer cumulant bound','Density transfer'],
-   'gaps':['Prove the spectral identification theorem mapping the geometric operator to the modulus-four Dirichlet race without GRH/LI.','Supply Arb payload matrices for the finite-window determinant/explicit-formula calculation.','Prove Hodge-Riemann positivity and orthogonality to the ordinary Tate main term.']},
- 'ym_mass_gap_import': {
-   'cert':'ym_mass_gap_import_certificate.json','proof':'ym_mass_gap_import_theorem.tex','source':'ym_import_inputs.json','script':'derive_ym_import_status.py','output':'gap_bound_form',
-   'formula':'import status = companion hash plus OS, reflection positivity, RG convergence, and positive spectral gap checks',
-   'inputs':None,   # filled from data_room/primary/ym/ym_companion_status.json below
-   'deps':[('Osterwalder-Schrader reconstruction','Osterwalder-Schrader Euclidean reconstruction theorem','reflection positivity, Euclidean invariance, symmetry, clustering','os_axioms_verified, reflection_positivity_verified','constructs physical Hilbert space and Hamiltonian')],
-   'lemmas':[],
-   'gaps':None},   # filled from the status file below
- 'proton_cp': {
-   'cert':'proton_cp_lattice_certificate.json','proof':'proton_cp_lattice_extraction_theorem.tex','source':'proton_lattice_inputs.json','script':'derive_proton_cp_interval.py','output':'c_p_interval',
-   'formula':'c_p interval = M_p interval divided by Lambda_QCD interval with continuum, finite-volume, and scale-setting controls',
-   'inputs':{'computation':'ugct_formal/proton_cp_published_lattice.py','scheme_of_Lambda_QCD':None},
-   'deps':[('Continuum extrapolation control','standard lattice-QCD continuum/finite-volume extrapolation framework','ensemble metadata, spacing sequence, finite-volume controls','continuum_extrapolation_verified, finite_volume_error_bounded, scale_setting_verified','transfers lattice masses to continuum interval')],
-   'lemmas':[],
-   'gaps':['Declare the scheme and number of flavours of Lambda_QCD = M_Pl e^-44 (ledger C17); published lattice QCD then fixes c_p.','Give a source for the exponent 44 (chi(Y4)/24 = 127, ledger T23).']},
- 'hadamard_divisor': {
-   'cert':'hadamard_divisor_certificate.json','proof':'hadamard_divisor_identification_theorem.tex','source':'hadamard_divisor_inputs.json','script':'derive_hadamard_divisor_checks.py','output':'determinant_identity',
-   'formula':'D(s)=det_reg(I+K_infty(s)) = E(s) Xi(s), with E zero-free on the transfer strip',
-   'inputs':{'tail_epsilon_upper':4.0e-13,'parity_gap_lower':2.8e-6,'determinant_identity':'det_reg(I+K_infty(s)) = E(s) Xi(s)'},
-   'deps':[('Hurwitz theorem','Hurwitz theorem for normally convergent holomorphic functions','normal convergence and no boundary zero collapse','hurwitz_transfer_verified, h2_tail_graph_norm_verified','transfers finite divisor statement to the limit')],
-   'lemmas':['H2 graph-norm convergence','Parity-gap persistence','Zero-free factor'],
-   'gaps':['Prove the determinant identity F_infty=c Xi from the operator construction, not merely record it.','Emit interval-Arb matrices and eigenvalue enclosures for the parity gap along the truncation exhaustion.','Prove the auxiliary factor E(s) is zero-free on the full transfer strip.']},
- 'y4_tensor': {
-   'cert':'y4_tensor_manifest.json','proof':'y4_tensor_reproduction_theorem.tex','source':'y4_tensor_inputs.json','script':'derive_y4_tensor_manifest.py','output':'nonzero_quadruple_intersections',
-   'formula':'degree-four tensor export = Chow reduction of all divisor quadruple products modulo SR ideal, linear equivalences, proper transform, and pushforward rules',
-   'inputs':{'built_by':'ugct_sage_y4/build_y4_tensor_manifest.py in ugct-sage-y4.yml'},
-   'deps':[('Chow-ring reduction','Fulton intersection-theoretic pushforward and toric Chow quotient','resolved presentation, SR ideal, linear equivalences, proper transform','full_chamber_specific_tensor_verified, exceptional_reduction_rules','computes all degree-four intersection numbers')],
-   'lemmas':[],
-   'gaps':['The tensor is built only inside a Sage Y4 run; this workflow does not run Sage.']}
-}
-
-def _ym_from_status():
-    """The YM entry's inputs and gaps, read from the author's status file (they used to be typed in, including a
-    companion hash with no file behind it)."""
-    path = REPO / 'data_room' / 'primary' / 'ym' / 'ym_companion_status.json'
-    st = json.loads(path.read_text()) if path.exists() else {}
-    gates = st.get('gates') or {}
-    vol = st.get('companion_volume') or {}
-    inputs = {'status_file': str(path.relative_to(REPO)), 'companion_volume_file': vol.get('file'),
-              'gate_status': {g.get('flag'): g.get('status') for g in gates.values()}}
-    gaps = [f"{g.get('flag')}: {g.get('status')} ({'; '.join(g.get('references') or [])})" for g in gates.values()
-            if g.get('status') != 'proved']
-    if not vol.get('file'):
-        gaps.append('Commit the companion volume so that its hash can be computed.')
-    if not st.get('independent_verification'):
-        gaps.append('Record an independent verification of the companion volume.')
-    if not st:
-        gaps = ['The status file is missing.']
-    return inputs, gaps
+MARK = "% --- journal semantic supplement, generated by emit_journal_semantic_payloads.py from the record ---"
 
 
-ITEMS['ym_mass_gap_import']['inputs'], ITEMS['ym_mass_gap_import']['gaps'] = _ym_from_status()
+def journal_fields(item: str, rec: dict, tex: str) -> dict:
+    inputs = rec.get("inputs") if isinstance(rec.get("inputs"), list) else []
+    lemmas = re.findall(r"\\begin\{lemma\}\[([^\]]+)\]", tex) if rec.get("scope_category") == "VERIFIED" else []
+    gaps = list(rec.get("open_items") or [])
+    if rec.get("scope_category") == "CONDITIONAL":
+        gaps += [f"Conditional on: {h}" for h in rec.get("hypotheses") or []]
+    complete = rec.get("scope_category") == "VERIFIED" and not rec.get("open_items")
+    return {
+        "source_artifacts": [{"path": i.get("path"), "sha256": i.get("sha256"), "role": i.get("role")} for i in inputs],
+        "constant_derivations": [{"name": dv.get("name"), "formula": dv.get("formula"),
+                                  "input_artifacts": dv.get("inputs"), "script": dv.get("script"),
+                                  "rounding_mode": dv.get("rounding"), "output_field": dv.get("output_field")}
+                                 for dv in rec.get("derivations") or []],
+        "theorem_dependencies": list(rec.get("theorem_dependencies") or []),
+        "lemma_proof_map": [{"lemma": t, "proof_label": f"Proof of Lemma: {t}"} for t in lemmas],
+        "dependency_dag": [{"upstream": i.get("path"), "downstream": item} for i in inputs]
+                          + [{"upstream": item, "downstream": "journal_readiness_report"}],
+        "journal_derivation_status": "SOURCE_BACKED_COMPLETE" if complete else "SOURCE_BACKED_PARTIAL",
+        "journal_gaps": [] if complete else (gaps or [f"scope {rec.get('scope_category')}: not verified"]),
+    }
 
 
-def sha(path: Path) -> str:
-    h=hashlib.sha256(); h.update(path.read_bytes()); return h.hexdigest()
+def supplement(fields: dict) -> str:
+    e = fr.tex_escape
+    lines = ["", MARK, r"\subsection*{Journal semantic supplement}", r"\paragraph{Source artifact table.}"]
+    lines += ([r"\begin{itemize}"] + [f"\\item \\texttt{{{e(a['path'])}}}: {e(a['role'])}." for a in fields["source_artifacts"]]
+              + [r"\end{itemize}"]) if fields["source_artifacts"] else ["No input files."]
+    lines.append(r"\paragraph{Derivation of constants.}")
+    lines += ([r"\begin{itemize}"] + [f"\\item \\texttt{{{e(c['output_field'])}}} $=$ {e(c['formula'])} "
+                                      f"(\\texttt{{{e(c['script'])}}}; {e(c['rounding_mode'])})."
+                                      for c in fields["constant_derivations"]] + [r"\end{itemize}"]) \
+        if fields["constant_derivations"] else ["No constant is derived in this record."]
+    lines.append(r"\paragraph{Imported theorem dependencies.}")
+    lines += ([r"\begin{itemize}"] + [f"\\item {e(t['name'])} ({e(t['source'])}): hypotheses {e(t['hypotheses'])}; "
+                                      f"used for: {e(t['conclusion_used'])}." for t in fields["theorem_dependencies"]]
+              + [r"\end{itemize}"]) if fields["theorem_dependencies"] else ["None."]
+    lines += [f"Proof of Lemma: {e(m['lemma'])} -- given with the lemma above." for m in fields["lemma_proof_map"]]
+    lines += [r"\paragraph{Rounding and reproducibility.}",
+              "Every value is recomputed by the scripts named above from the hashed inputs in each run."]
+    if fields["journal_gaps"]:
+        lines += [r"\paragraph{Remaining journal-readiness gaps.}", r"\begin{itemize}"] \
+                 + [f"\\item {e(g)}" for g in fields["journal_gaps"]] + [r"\end{itemize}"]
+    return "\n".join(lines) + "\n"
 
-def write_json(path: Path, obj: dict) -> None:
-    path.write_text(json.dumps(obj, indent=2, sort_keys=True))
 
-def calc_script(item: str, source_name: str, output: str) -> str:
-    return f"""#!/usr/bin/env python3\nfrom __future__ import annotations\nimport json\nfrom pathlib import Path\nROOT = Path(__file__).resolve().parents[1]\nsource = json.loads((ROOT/'source_artifacts'/'{source_name}').read_text())\nresult = {{'item':'{item}', 'output_field':'{output}', 'derived_from':source}}\n(ROOT/'data'/'derived_{item}.json').write_text(json.dumps(result, indent=2, sort_keys=True))\nprint(json.dumps(result, sort_keys=True))\n"""
+def main() -> int:
+    root = Path.cwd()
+    for item, (cert_rel, proof_rel, _) in fr.ITEMS.items():
+        cert, proof = root / cert_rel, root / proof_rel
+        if not cert.exists():
+            print(json.dumps({"skipped": item, "reason": f"missing {cert_rel}"}))
+            continue
+        rec = json.loads(cert.read_text())
+        tex = proof.read_text().split("\n" + MARK)[0].rstrip("\n") + "\n" if proof.exists() else ""
+        fields = journal_fields(item, rec, tex)
+        rec.update(fields)
+        rec["payload_hash"] = fr.canonical_hash(rec)
+        cert.write_text(json.dumps(rec, indent=2, sort_keys=True) + "\n")
+        if proof.exists():
+            proof.write_text(tex + supplement(fields))
+        print(json.dumps({"updated": item, "scope_category": rec.get("scope_category"),
+                          "journal_status": fields["journal_derivation_status"], "gaps": len(fields["journal_gaps"])}))
+    return 0
 
-def semantic_supplement(item: str, spec: dict, art_rel: str, script_rel: str) -> str:
-    gaps = spec['gaps']
-    gap_text = '\n'.join([f"\\item {g}" for g in gaps]) if gaps else '\\item No journal-readiness gap recorded by this semantic payload.'
-    dep_rows = '\n'.join([f"\\item {d[0]} ({d[1]}): hypotheses {d[2]}; check map {d[3]}; conclusion {d[4]}." for d in spec['deps']])
-    lemma_rows = '\n'.join([f"\\paragraph{{Proof of Lemma: {l}.}} This lemma is linked to the source artifact, constant derivation, and imported theorem map above.  The current repository records the derivation inputs and the proof obligation explicitly; the journal readiness report keeps this item open unless the listed gap set is empty." for l in spec['lemmas']])
-    return f"""
 
-\\section*{{Journal Semantic Supplement for {item}}}
-\\subsection*{{Source artifact table}}
-\\begin{{itemize}}
-\\item Primary semantic source artifact: \\texttt{{{art_rel}}}.
-\\item Recalculation script: \\texttt{{{script_rel}}}.
-\\item Output field: \\texttt{{{spec['output']}}}.
-\\end{{itemize}}
-
-\\subsection*{{Derivation of constants}}
-The constant or interval attached to this sidecar is computed by the formula
-\\[
-{spec['formula']}
-\\]
-using the input artifact \\texttt{{{art_rel}}}.  The script \\texttt{{{script_rel}}}
-re-emits the derivation payload into \\texttt{{data\\_room/data/derived\\_{item}.json}} so that
-reviewers can inspect the data-to-certificate path rather than relying only on
-a status label.
-
-\\subsection*{{Imported theorem dependencies}}
-\\begin{{itemize}}
-{dep_rows}
-\\end{{itemize}}
-
-\\subsection*{{Rounding and reproducibility}}
-All numerical fields are stored in JSON source artifacts and are hash-linked in
-the certificate.  The current semantic payload records the rounding mode as
-outward interval enclosure wherever an interval endpoint appears.  A stricter
-future Arb implementation can replace the lightweight derivation script without
-changing the sidecar dependency map.
-
-{lemma_rows}
-
-\\subsection*{{Remaining journal-readiness gaps}}
-\\begin{{itemize}}
-{gap_text}
-\\end{{itemize}}
-"""
-
-def main():
-    for item, spec in ITEMS.items():
-        source_path = SRC / spec['source']
-        write_json(source_path, {'item':item,'role':'semantic source artifact for journal readiness','inputs':spec['inputs'],'formula':spec['formula']})
-        script_path = SCRIPTS / spec['script']
-        script_path.write_text(calc_script(item, spec['source'], spec['output']))
-        cert_path = DATA / spec['cert']
-        cert = json.loads(cert_path.read_text()) if cert_path.exists() else {}
-        art_rel = str(source_path.relative_to(REPO))
-        script_rel = str(script_path.relative_to(REPO))
-        cert['source_artifacts'] = [{'path':art_rel,'sha256':sha(source_path),'role':'primary semantic input for this certificate'}]
-        cert['constant_derivations'] = [{'name':spec['output'],'formula':spec['formula'],'input_artifacts':[art_rel],'script':script_rel,'rounding_mode':'outward_interval_or_exact_json_replay','output_field':spec['output']}]
-        cert['theorem_dependencies'] = [{'name':d[0],'source':d[1],'hypotheses':d[2],'hypothesis_check_map':d[3],'conclusion_used':d[4]} for d in spec['deps']]
-        cert['lemma_proof_map'] = [{'lemma':l,'proof_label':f'Proof of Lemma: {l}'} for l in spec['lemmas']]
-        cert['dependency_dag'] = [{'upstream':'geometry_and_source_artifacts','downstream':item},{'upstream':item,'downstream':'journal_readiness_report'}]
-        cert['journal_derivation_status'] = 'SOURCE_BACKED_COMPLETE' if not spec['gaps'] else 'SOURCE_BACKED_PARTIAL'
-        cert['journal_gaps'] = spec['gaps']
-        tmp = dict(cert); tmp.pop('payload_hash', None)
-        cert['payload_hash'] = hashlib.sha256(json.dumps(tmp, sort_keys=True, separators=(',',':')).encode()).hexdigest()
-        write_json(cert_path, cert)
-        proof_path = PROOFS / spec['proof']
-        original = proof_path.read_text() if proof_path.exists() else ''
-        proof_path.write_text(original.rstrip() + semantic_supplement(item, spec, art_rel, script_rel))
-        print(json.dumps({'updated':item,'journal_status':cert['journal_derivation_status'],'gaps':len(spec['gaps'])}, sort_keys=True))
-
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    sys.exit(main())

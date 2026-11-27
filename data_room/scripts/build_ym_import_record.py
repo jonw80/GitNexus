@@ -9,10 +9,14 @@ theorems and pages, what is proved, and what is assumed or open. It also records
 any independent verification.
 
 A flag is true only when its statement is proved as stated (status "proved"). The record has status
-VERIFIED_YM_MASS_GAP_COMPANION_IMPORT only if all four flags are true, the volume file is in the repository (and
-matches a recorded hash, if one is given), and at least one independent verification is recorded. Otherwise the status
-is YM_COMPANION_IMPORT_CONDITIONAL and the reasons are listed in open_items. Every value comes from the status file
-or from hashing files; nothing is typed in here.
+VERIFIED_YM_MASS_GAP_COMPANION_IMPORT (scope VERIFIED) only if all four flags are true, the volume file is in the
+repository (and matches a recorded hash, if one is given), and at least one independent verification is recorded.
+Otherwise the reasons are listed in open_items, and the scope (data_room/scripts/frontier_records.py) is
+  OPEN         (YM_COMPANION_IMPORT_OPEN) if any statement is "open" or "lattice_only", or
+  CONDITIONAL  (YM_COMPANION_IMPORT_CONDITIONAL) if each is "proved" or "conditional"; hypotheses lists what the
+               conditional statements assume and, if the volume is not committed or not independently verified, that
+               its proofs are taken as recorded.
+Every value comes from the status file or from hashing files; nothing is typed in here.
 
 This replaces the certificate that emit_frontier_closeout_artifacts.py used to type in (status VERIFIED, all flags
 true, and a companion hash with no file behind it).
@@ -24,6 +28,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -32,6 +37,8 @@ OUT_JSON = "data_room/data/ym_mass_gap_import_certificate.json"
 OUT_TEX = "data_room/proofs/ym_mass_gap_import_theorem.tex"
 VERIFIED = "VERIFIED_YM_MASS_GAP_COMPANION_IMPORT"
 CONDITIONAL = "YM_COMPANION_IMPORT_CONDITIONAL"
+OPEN = "YM_COMPANION_IMPORT_OPEN"
+COMPUTED_BY = "data_room/scripts/build_ym_import_record.py"
 GATES = [("os_axioms", "os_axioms_verified"), ("reflection_positivity", "reflection_positivity_verified"),
          ("rg_convergence", "rg_convergence_verified"), ("spectral_gap", "spectral_gap_lower_bound_positive")]
 STATUSES = ("proved", "conditional", "lattice_only", "open")
@@ -88,7 +95,8 @@ def load_status(root: Path) -> dict:
     return st
 
 
-def build(root: Path) -> tuple[dict, str]:
+def build(root: Path, env: dict | None = None) -> tuple[dict, str]:
+    env = env or {}
     st = load_status(root)
     vol = st["companion_volume"]
     open_items = []
@@ -118,10 +126,31 @@ def build(root: Path) -> tuple[dict, str]:
         open_items.append("No independent verification of the companion volume is recorded.")
 
     verified = all(flags.values()) and volume_sha is not None and bool(st["independent_verification"])
+    statuses = {st["gates"][name]["status"] for name, _ in GATES}
+    if verified:
+        scope, status, hypotheses = "VERIFIED", VERIFIED, []
+    elif statuses & {"open", "lattice_only"}:
+        scope, status, hypotheses = "OPEN", OPEN, []
+    else:
+        scope, status = "CONDITIONAL", CONDITIONAL
+        hypotheses = [f"{flag}: {st['gates'][name].get('assumed_or_open') or 'assumptions as stated in the volume'}"
+                      for name, flag in GATES if st["gates"][name]["status"] == "conditional"]
+        if volume_sha is None or not st["independent_verification"]:
+            hypotheses.append("The companion volume's proofs, as recorded in the status file (the volume is not "
+                              "committed with a matching hash, or no independent verification is recorded).")
+    inputs = [{"path": STATUS_FILE, "sha256": sha256_file(root / STATUS_FILE), "role": "author's status of the four statements"}]
+    if volume_sha is not None:
+        inputs.append({"path": vfile, "sha256": volume_sha, "role": "companion volume"})
     record = {
-        "schema_version": "UGCT_YM_MASS_GAP_IMPORT_RECORD_V1",
-        "status": VERIFIED if verified else CONDITIONAL,
+        "schema_version": "UGCT_YM_MASS_GAP_IMPORT_RECORD_V2",
+        "status": status,
+        "scope_category": scope,
         "fully_certified": verified,
+        "computed_by": COMPUTED_BY,
+        "inputs": inputs,
+        "hypotheses": hypotheses,
+        "source_workflow_run_id": str(env.get("GITHUB_RUN_ID") or "local"),
+        "source_commit": str(env.get("GITHUB_SHA") or ""),
         "companion_volume_sha256": volume_sha,
         "companion_volume": {"title": vol.get("title"), "file": vfile, "recorded_sha256": vol.get("sha256"),
                              "note": vol.get("note")},
@@ -159,7 +188,9 @@ def build(root: Path) -> tuple[dict, str]:
                      f"status \\texttt{{{tex_escape(g['status'])}}}. References: {tex_escape('; '.join(g['references']))}. "
                      f"Proved: {tex_escape(g.get('proved') or 'nothing recorded')} "
                      f"Assumed or open: {tex_escape(g.get('assumed_or_open') or 'nothing recorded')}")
-    lines += [r"\end{itemize}", f"Status: \\texttt{{{tex_escape(record['status'])}}}."]
+    lines += [r"\end{itemize}", f"Scope: \\texttt{{{scope}}}. Status: \\texttt{{{tex_escape(record['status'])}}}."]
+    if hypotheses:
+        lines += [r"Hypotheses:", r"\begin{enumerate}"] + [f"\\item {tex_escape(h)}" for h in hypotheses] + [r"\end{enumerate}"]
     if record["open_items"]:
         lines += [r"Open items:", r"\begin{enumerate}"] + [f"\\item {tex_escape(i)}" for i in record["open_items"]] + [r"\end{enumerate}"]
     return record, "\n".join(lines) + "\n"
@@ -168,7 +199,7 @@ def build(root: Path) -> tuple[dict, str]:
 def main() -> int:
     root = Path(__file__).resolve().parents[2]
     try:
-        record, tex = build(root)
+        record, tex = build(root, dict(os.environ))
     except StatusFileError as exc:
         print(f"FAILED: {exc}")
         return 1
@@ -176,7 +207,7 @@ def main() -> int:
     (root / OUT_TEX).parent.mkdir(parents=True, exist_ok=True)
     (root / OUT_JSON).write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
     (root / OUT_TEX).write_text(tex)
-    print(json.dumps({k: record[k] for k in ("status", "companion_volume_sha256", "os_axioms_verified",
+    print(json.dumps({k: record[k] for k in ("status", "scope_category", "companion_volume_sha256", "os_axioms_verified",
                                              "reflection_positivity_verified", "rg_convergence_verified",
                                              "spectral_gap_lower_bound_positive")}, indent=2))
     return 0

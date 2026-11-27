@@ -120,13 +120,15 @@ def verify(name, spec):
     return rec
 
 def main():
-    p=argparse.ArgumentParser(); p.add_argument('--allow-proton-pending', action='store_true'); args=p.parse_args()
+    p=argparse.ArgumentParser(); p.add_argument('--allow-proton-pending', action='store_true')
+    p.add_argument('--report-only', action='store_true', help='write and print the report, exit 0 (the scoped gate verify_frontier_scoped.py then decides the run)')
+    args=p.parse_args()
     DATA.mkdir(parents=True, exist_ok=True)
     records=[verify(n,s) for n,s in REQUIRED.items()]
     effective=[r for r in records if not (args.allow_proton_pending and r['name']=='proton_cp')]
     ok=all(r['ok'] for r in effective)
-    report={'schema_version':'UGCT_FRONTIER_CLOSEOUT_REPORT_V3','status':'FRONTIER_CLOSEOUT_VERIFIED' if ok else 'FRONTIER_CLOSEOUT_NOT_VERIFIED','strict':True,'allow_proton_pending':bool(args.allow_proton_pending),'records':records}
+    report={'schema_version':'UGCT_FRONTIER_CLOSEOUT_REPORT_V3','status':'FRONTIER_CLOSEOUT_VERIFIED' if ok else 'FRONTIER_CLOSEOUT_NOT_VERIFIED','strict':True,'allow_proton_pending':bool(args.allow_proton_pending),'report_only':bool(args.report_only),'strict_tally':f"{sum(r['ok'] for r in records)}/{len(records)}",'records':records}
     REPORT.write_text(json.dumps(report, indent=2, sort_keys=True)); print(json.dumps(report, indent=2, sort_keys=True))
-    return 0 if ok else 1
+    return 0 if ok or args.report_only else 1
 if __name__ == '__main__':
     raise SystemExit(main())

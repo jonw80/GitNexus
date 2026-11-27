@@ -1,0 +1,50 @@
+{
+  "schema_version": "UGCT_YM_COMPANION_STATUS_V1",
+  "recorded": "2026-11-26",
+  "source": "Stated by the author on 2026-11-26 from the current version of the companion volume. Theorem and page numbers refer to that version.",
+  "companion_volume": {
+    "title": "Rigorous Construction of 4D Yang-Mills QFT and the Mass Gap (GZYM)",
+    "file": null,
+    "sha256": null,
+    "note": "The cited version is not in the repository or the project. The project copy GZYM_proof_2_section2closed_v4.tex (dated March 2026) lacks the cited sections, so the references are recorded as stated and have not been checked against the text."
+  },
+  "independent_verification": [],
+  "gates": {
+    "os_axioms": {
+      "flag": "os_axioms_verified",
+      "status": "conditional",
+      "statement": "Osterwalder-Schrader axioms OS0-OS4 for the continuum Schwinger functions on R^4",
+      "references": ["Theorem 2.1, pp. 12-13", "notice above Theorem 37.10, p. 157", "Theorem A.34.11, pp. 230-231"],
+      "proved": "The fixed-cutoff construction, for SU(3).",
+      "assumed_or_open": "Theorem 2.1 is stated for a compact simple Lie group and assumes a proved weak-to-physical RG trajectory on the physical quotient, including horizon matching; continuum estimates and identification of the gauge-invariant Schwinger functions with ordinary Yang-Mills; and, on the finite SU(3) route, completion of its six-channel crossing, external-norm and Feshbach gates. The notice above Theorem 37.10 leaves continuum regularity and full Euclidean covariance open, and Theorem A.34.11 does not close those prerequisites."
+    },
+    "reflection_positivity": {
+      "flag": "reflection_positivity_verified",
+      "status": "lattice_only",
+      "statement": "Reflection positivity of the continuum theory on the gauge-invariant sector",
+      "references": ["Theorem A.67.1, p. 277", "Theorem 40.20, p. 178", "p. 269", "Lemma A.67.3, p. 278"],
+      "proved": "Theorem A.67.1: for fixed finite beta >= 0 and subsequences of even periodic four-dimensional SU(3) Wilson boxes, positivity on the gauge-invariant continuous local algebra, tested on the reflected half-lattice.",
+      "assumed_or_open": "The continuum gate is open. Theorem 40.20 assumes joint positivity for the localized Gribov-Zwanziger measure and that reflection preserves the Gribov region; p. 269 and Lemma A.67.3 withdraw the generic reweighting argument. This is not positivity of the gauge-fixed gluon propagator, which lattice data show to be violated (Cucchieri, Mendes, Taurines, arXiv:hep-lat/0406020, Landau gauge, 3d SU(2))."
+    },
+    "rg_convergence": {
+      "flag": "rg_convergence_verified",
+      "status": "open",
+      "statement": "Limit of zero lattice spacing and infinite volume",
+      "references": ["Theorem 40.10, p. 173", "Lemmas 40.12-40.13 and Theorem 40.14, pp. 174-175", "Remarks A.67.5-A.67.6, pp. 278-279", "Theorem A.67.1, p. 277"],
+      "proved": "Theorem A.67.1 takes the volume to infinity at fixed cutoff only, along subsequences and without uniqueness.",
+      "assumed_or_open": "Theorem 40.10 is conditional. Lemmas 40.12-40.13 and Theorem 40.14 require matched relevant and marginal couplings, control of generated differences along the actual RG flow, and a scale-dependent continuity error that tends to zero; Remarks A.67.5-A.67.6 explain why the printed bounds do not establish those steps."
+    },
+    "spectral_gap": {
+      "flag": "spectral_gap_lower_bound_positive",
+      "status": "open",
+      "statement": "Physical mass gap Delta > 0, uniform in the volume",
+      "references": ["Theorem 25.2, p. 123", "Proposition A.66.7, p. 276", "Theorem A.67.7, p. 279", "Remark A.67.6, p. 279", "Theorem 8.12, p. 71"],
+      "proved": "A decay bound at fixed volume, whose infimum over volumes is zero (Remark A.67.6).",
+      "assumed_or_open": "Theorem 25.2 and Proposition A.66.7 require a common positive time-decay rate on a dense centered physical core, not decay of one observable. Theorem A.67.7 also requires convergence to an OS-reconstructible theory and a rate bounded away from zero in physical units, uniformly in the spatial volume. The Faddeev-Popov bound of Theorem 8.12 is not the physical Hamiltonian gap."
+    }
+  },
+  "pipelines": {
+    "anvil_V183_V187": "open: NUMERICAL_CROSSING_AND_ND_STILL_OPEN, FAILED_BEFORE_COMPUTATION, six-channel matrices not available (DAG Finding 'The Yang-Mills companion is open')",
+    "gitnexus_V12_V16": "finite volume only; coupled Haar integrations not executed"
+  }
+}

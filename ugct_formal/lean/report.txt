@@ -1,0 +1,28 @@
+'UGCT.gauss_mul_five' depends on axioms: [propext, Classical.choice, Quot.sound]
+'UGCT.alpha_identity' depends on axioms: [propext, Classical.choice, Quot.sound]
+'UGCT.Grading.mem_reachable_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+'UGCT.Grading.alpha_not_reachable' depends on axioms: [propext, Classical.choice, Quot.sound]
+'UGCT.Grading.gammaOne_not_reachable' depends on axioms: [propext, Classical.choice, Quot.sound]
+'UGCT.Grading.grade_wpVec' depends on axioms: [propext, Classical.choice, Quot.sound]
+'UGCT.Grading.grade_yukVec' depends on axioms: [propext, Classical.choice, Quot.sound]
+'UGCT.Grading.wp_fermat_direction_reachable' depends on axioms: [propext, Classical.choice, Quot.sound]
+'UGCT.Grading.yukawa_fermat_direction_reachable' depends on axioms: [propext, Classical.choice, Quot.sound]
+'UGCT.Grading.sin2W_not_reachable' depends on axioms: [propext, Classical.choice, Quot.sound]
+'UGCT.Grading.lambdaH_not_reachable' depends on axioms: [propext, Classical.choice, Quot.sound]
+'UGCT.Grading.vcbFactor_not_reachable' depends on axioms: [propext, Classical.choice, Quot.sound]
+'UGCT.Grading.kappaSq_reachable' depends on axioms: [propext, Classical.choice, Quot.sound]
+'UGCT.Conditional.alpha_closed_form_not_from_periods' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ UGCT.Conditional.rohrlich_five]
+'UGCT.Conditional.gamma_one_fifth_not_from_periods' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ UGCT.Conditional.rohrlich_five]
+'UGCT.Physics.law1' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound,
+ UGCT.Physics.P2_hypercharge_dictionary,
+ UGCT.Physics.P8_normalization,
+ UGCT.Physics.P9_gauge_period]
+'UGCT.Physics.law1_of_postulates' depends on axioms: [propext, Classical.choice, Quot.sound]

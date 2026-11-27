@@ -65,7 +65,7 @@ def check_item(name: str, cert_name: str, proof_name: str):
         text = proof.read_text()
         for section in TEX_SECTIONS:
             if section not in text: missing.append(f'tex:{section}')
-    return {'name': name, 'certificate': cert_name, 'proof': proof_name, 'semantic_fields_present': len(missing)==0, 'journal_ready': len(missing)==0 and len(gaps)==0, 'missing_requirements': sorted(set(missing)), 'journal_gaps': gaps}
+    return {'name': name, 'certificate': cert_name, 'proof': proof_name, 'scope_category': obj.get('scope_category'), 'status': obj.get('status'), 'semantic_fields_present': len(missing)==0, 'journal_ready': len(missing)==0 and len(gaps)==0, 'missing_requirements': sorted(set(missing)), 'journal_gaps': gaps}
 
 def main() -> int:
     DATA.mkdir(parents=True, exist_ok=True)

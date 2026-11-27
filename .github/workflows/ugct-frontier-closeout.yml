@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       allow_proton_pending:
-        description: 'Permit the proton coefficient item to be skipped by the gate'
+        description: 'Permit the proton coefficient item to be skipped in the strict tally (report only)'
         required: false
         default: 'false'
         type: choice
@@ -14,11 +14,21 @@ on:
   push:
     paths:
       - 'data_room/scripts/emit_frontier_closeout_artifacts.py'
-      - 'data_room/scripts/emit_referee_proof_sidecars.py'
+      - 'data_room/scripts/build_frontier_certificates.py'
+      - 'data_room/scripts/build_ym_import_record.py'
+      - 'data_room/scripts/frontier_records.py'
+      - 'data_room/scripts/frontier_test_support.py'
+      - 'data_room/scripts/test_build_frontier_certificates.py'
+      - 'data_room/scripts/test_build_ym_import_record.py'
+      - 'data_room/scripts/test_verify_frontier_scoped.py'
+      - 'data_room/scripts/verify_frontier_scoped.py'
       - 'data_room/scripts/emit_journal_semantic_payloads.py'
       - 'data_room/scripts/verify_frontier_closeout.py'
       - 'data_room/scripts/verify_referee_sidecars.py'
       - 'data_room/scripts/journal_readiness_report.py'
+      - 'data_room/primary/**'
+      - 'ugct_formal/proton_cp_published_lattice.py'
+      - 'ugct_sage_y4/independent_y4_pushforward.py'
       - '.github/workflows/ugct-frontier-closeout.yml'
 
 jobs:
@@ -29,28 +39,45 @@ jobs:
       - name: Checkout GitNexus
         uses: actions/checkout@v4
 
-      - name: Emit proof and certificate artifacts
-        run: python3 data_room/scripts/emit_frontier_closeout_artifacts.py
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
 
-      - name: Strengthen proof sidecars for referee review
-        run: python3 data_room/scripts/emit_referee_proof_sidecars.py
+      - name: Install PARI (cypari2) for the prime-race computation
+        run: python -m pip install --no-input cypari2
 
-      - name: Populate journal semantic payloads and gap ledger
-        run: python3 data_room/scripts/emit_journal_semantic_payloads.py
+      - name: Compute the Y4 tensor independently (exact pushforward, pure Python)
+        run: python ugct_sage_y4/independent_y4_pushforward.py ugct_sage_y4/data/y4_independent_tensor.json
 
-      - name: Verify closeout artifacts
+      - name: Test the record builders and the scoped gate
+        run: |
+          python data_room/scripts/test_build_ym_import_record.py
+          python data_room/scripts/test_build_frontier_certificates.py
+          python data_room/scripts/test_verify_frontier_scoped.py
+
+      - name: Build the eight frontier records from this run's computations
+        run: python data_room/scripts/emit_frontier_closeout_artifacts.py
+
+      - name: Strict frontier tally (report only; an item counts only if VERIFIED)
         run: |
           if [ "${{ github.event.inputs.allow_proton_pending || 'false' }}" = "true" ]; then
-            python3 data_room/scripts/verify_frontier_closeout.py --allow-proton-pending
+            python data_room/scripts/verify_frontier_closeout.py --report-only --allow-proton-pending
           else
-            python3 data_room/scripts/verify_frontier_closeout.py
+            python data_room/scripts/verify_frontier_closeout.py --report-only
           fi
 
-      - name: Verify referee-grade proof sidecars
-        run: python3 data_room/scripts/verify_referee_sidecars.py
+      - name: Scoped frontier gate (each record states its scope and was computed in this run)
+        run: python data_room/scripts/verify_frontier_scoped.py
+
+      - name: Journal fields from the records
+        run: python data_room/scripts/emit_journal_semantic_payloads.py
+
+      - name: Verify the record sidecars (referee-grade structure for VERIFIED records)
+        run: python data_room/scripts/verify_referee_sidecars.py
 
       - name: Report journal readiness and remaining gaps
-        run: python3 data_room/scripts/journal_readiness_report.py
+        run: python data_room/scripts/journal_readiness_report.py
 
       - name: Upload closeout report
         if: always()

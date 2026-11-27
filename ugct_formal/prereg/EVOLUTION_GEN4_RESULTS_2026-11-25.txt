@@ -1,0 +1,38 @@
+G4-1  relation instances holding numerically (40 digits) with sigma preserved: 20000 of 20000
+      duplication Gamma(1/10)Gamma(3/5) = 2^(4/5) sqrt(pi) Gamma(1/5): holds True, sigma preserved True; sigma(Gamma(1/10)Gamma(3/5)/sqrt(pi)) = 1/5
+      Fermat periods (degree 3-12) checked by quadrature, sigma = 0: 60 of 60
+E2    sigma-screen: Law 1, pi Gamma(1/5)^3/Gamma(2/5): sigma = 1/5  (not a period)
+E2    sigma-screen: sin^2 theta_W, 25/(pi^2 Gamma(2/5)^3): sigma = 4/5  (not a period)
+E2    sigma-screen: lambda_H, Gamma(1/5) Gamma(2/5)/(25 pi): sigma = 3/5  (not a period)
+E2    sigma-screen: v_0 factor Gamma(1/5): sigma = 1/5  (not a period)
+E2    sigma-screen: V_cb factor Gamma(2/5)/Gamma(1/5): sigma = 1/5  (not a period)
+E2    sigma-screen: N_Y, 3 sqrt5 Gamma(1/5): sigma = 1/5  (not a period)
+E2    sigma-screen: kappa^2 (M5): sigma = 0  (period class)
+E2    sigma-screen: g_psipsibar(0) (M9): sigma = 0  (period class)
+E2    sigma-screen: P(omega_Y) (T16): sigma = 0  (period class)
+G4-2  T^2 = 2220446049250313080847263336181640625/65536 -710542735760100185871124267578125/4096 ...  characteristic polynomial of T^2, first coefficients
+      |1 - zeta|^2 = 4 sin^2(pi/5): True
+      T^2 is not an algebraic integer: True
+      (2T)^2 is an algebraic integer: True
+      |m*|^2 = (2T)^2 exactly: True
+      m* lies in Z[zeta_5]: True
+      T^2/n^2 not integral for n = 1..12: True
+      |Z(gamma*)| = 274.07196448251437947;  2 Law 1 = 274.07196448251437947;  difference 0.0
+G4-3  nested insertions in d = 4 - 2k/5 (k = 1..9, L <= 6) with Law 1's Gamma-content (3, -1): []
+      d =  18/5: L1 (-1, 1), L2 (-3, 0), L3 (-5, -1), L4 (-6, 0), L5 divergent
+      d =  16/5: L1 (-1, -1), L2 (0, -3), L3 (1, -5), L4 (0, -6), L5 divergent
+      d =  14/5: L1 (1, 1), L2 (0, 3), L3 (-1, 5), L4 (0, 6), L5 divergent
+      d =  12/5: L1 (1, -1), L2 (3, 0), L3 (5, 1), L4 (6, 0), L5 divergent
+      d =     2: L1 divergent
+      d =   8/5: L1 (-1, 1), L2 (-3, 0), L3 (-5, -1), L4 zero
+      d =   6/5: L1 (-1, -1), L2 (0, -3), L3 (1, -5), L4 zero
+      d =   4/5: L1 (1, 1), L2 (0, 3), L3 (-1, 5), L4 zero
+      d =   2/5: L1 (1, -1), L2 (3, 0), L3 (5, 1), L4 zero
+all pre-registered checks pass
+exit 0
+
+Notes (checking code only; the criteria are unchanged from the pre-registration, commit 9be1008):
+- The first run failed its own check on 30 of 60 Fermat periods: plain tanh-sinh quadrature loses accuracy at
+  strong endpoint singularities such as (1-u)^(-10/11) (errors up to 3e-5 against a tolerance of 1e-25). The check
+  now integrates after u = v^(1/al) on [0, 1/2] and 1 - u = w^(1/be) on [1/2, 1], which remove the singularities;
+  all 60 agree with the Gamma formula to 1e-40. test_evolution_gen4_checks.py includes the case that failed.

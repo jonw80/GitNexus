@@ -1,0 +1,45 @@
+G3-1  N_Y - 15 sqrt5 Gamma(6/5)          = -8.5528e-50
+      Law 1 - N_Y P(omega_Y)/(12 pi)      = 3.4211e-49
+      Law 1 - sin(2pi/5) 5^4 E4(1,1,1,3)  = 0.0
+      affine-chart characters a' (multisets): 35; hyperplanes 5, placements 4; (1,1,1,3) is input, not output: rank 33 of 35 by value
+G3-2  n = 1: states with Law 1's Gamma-content: 0 (Gepner-projected: 0)
+G3-2  n = 2: states with Law 1's Gamma-content: 0 (Gepner-projected: 0)
+G3-2  n = 3: states with Law 1's Gamma-content: 0 (Gepner-projected: 0)
+G3-2  n = 4: states with Law 1's Gamma-content: 1 (Gepner-projected: 0), e.g. [(1, 1, 1, 3)]
+G3-2  n = 5: states with Law 1's Gamma-content: 0 (Gepner-projected: 0)
+G3-2  n = 6: states with Law 1's Gamma-content: 2 (Gepner-projected: 0), e.g. [(1, 1, 1, 1, 3, 4), (1, 1, 1, 2, 3, 3)]
+G3-2  n = 7: states with Law 1's Gamma-content: 0 (Gepner-projected: 0)
+G3-2  n = 8: states with Law 1's Gamma-content: 3 (Gepner-projected: 0), e.g. [(1, 1, 1, 1, 1, 3, 4, 4), (1, 1, 1, 1, 2, 3, 3, 4), (1, 1, 1, 2, 2, 3, 3, 3)]
+      Law 1 / (pi^2 sqrt(g_1^3 g_3)) = 2.1640890861976425659  minimal polynomial: [5, 0, -20, 0, -16]
+      k = 1: |orthonormal thimble charge|/sqrt(pi) - (2/5) sqrt(sin(k pi/5)) = -6.6819e-52   (algebraic: no Gamma left)
+      k = 2: |orthonormal thimble charge|/sqrt(pi) - (2/5) sqrt(sin(k pi/5)) = 6.6819e-52   (algebraic: no Gamma left)
+      k = 3: |orthonormal thimble charge|/sqrt(pi) - (2/5) sqrt(sin(k pi/5)) = 1.3364e-51   (algebraic: no Gamma left)
+      k = 4: |orthonormal thimble charge|/sqrt(pi) - (2/5) sqrt(sin(k pi/5)) = 1.3364e-51   (algebraic: no Gamma left)
+      grades of all projected 5-copy normalizations: {0}
+G3-3  g_s = 1.0: Laplace integral / Gamma(6/5) = 1.0 = g_s^(6/5)
+G3-3  g_s = 1.1547005: Laplace integral / Gamma(6/5) = 1.18840163864 = g_s^(6/5)
+      ratio of the two fixed-point values: 1.1884016
+PARI stack size set to 2000000000 bytes, maximum size set to 2000003072
+H_3(F): rank 256; rank S = 204; radical rank 52; nonzero elementary divisors: [1] x 204
+E     exact certificate over 51 blocks ((pairs below the bound, pairs at the bound) for dual, block): {((0, 5), (0, 5)): 51}
+      certified: every nonzero charge has Q >= (2/125) tan 72 = 0.0492429; alpha^-1 <= 20.3075; block minimum 10 tan 72 = 30.7768
+exit 0
+
+Notes (checking code only; the criteria are unchanged from the pre-registration, commit 465bbf0):
+- E: PARI qfminim with flag 2 widens the bound by a relative slack of about 1e-9, so a first run that tested
+  "no vectors below exact(1 - 1e-9)" counted the minimal vectors themselves. The test now uses 1 - 1e-6 and
+  recomputes the norms of the returned minimal vectors, which agree with the exact values to 1e-15.
+- G3-2 (i): findpoly (degree 8, coefficients up to 1e6) missed (2/5) sqrt(sin(k pi/5)), whose minimal polynomial
+  390625 x^8 - 12500 x^4 + 80 is within range; the check now compares with that closed form directly.
+- After the run (review of PR #2): the script now checks every pre-registered claim (the part E criterion on all
+  51 blocks, definiteness of each Hodge form, the T16 identities, the T17 counts, the G3-3 integrals) and exits
+  with status 1 if any fails; before, it printed the certificate line unconditionally. Rerun: output identical to
+  the lines above, exit 0. A mutant with the bound raised by 1% prints FAILED and exits 1. The pass/fail logic is
+  unit-tested by test_evolution_gen3_checks.py, and both run in CI.
+- Second review of PR #2: part E used floating-point forms (qfminim with flag 2) and tolerances, so it was not a
+  proof. It now builds every block's Hodge form exactly in Q(zeta_20) (exact_forms.py, which checks that M1 satisfies
+  Phi_5 and has order 5, that the Weil operator is real, commutes with M1 and squares to -1, and that E C is symmetric
+  and positive definite), enumerates every vector of norm up to the bound (box from v_i^2 <= m (G^-1)_ii, with
+  rigorous upper bounds) and decides each comparison exactly; signs come from interval arithmetic. Result on all
+  51 blocks, for the dual and the block form: no pair below the bound, 5 pairs at it (as before). A mutant with the
+  dual bound raised by 1e-30 prints FAILED and exits 1. Unit tests: test_exact_forms.py. The G3 lines are unchanged.

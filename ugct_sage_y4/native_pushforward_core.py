@@ -22,10 +22,17 @@ model=json.loads(MODEL.read_text())
 RING=PolynomialRing(QQ,['e0','e1','e2','e3','e4','L','R','H']+[f'ee{i}' for i in range(1,9)])
 F=RING.fraction_field(); V={n:F(g) for n,g in zip(RING.variable_names(),F.gens())}
 e0,e1,e2,e3,e4,L,R,H=[V[n] for n in ['e0','e1','e2','e3','e4','L','R','H']]; ee={i:V[f'ee{i}'] for i in range(1,9)}
-S=R; HS=3*e0+6*L-(e1+e2+e3+e4)
+S=R
+# Conventions of IntersectionNumbers.m (Jefferson-Turner), as in its source:
+#   hypersurface[{a,4}] = 3 e[0] + 6L - 2e[1] - e[2] - e[3] - e[4]  (algebraHS subtracts e[index] once more);
+#   generators[{a,4}]   = {{e[0]+2L, e[0]+3L, s[1]}, {e[0]+3L-e[1], e[1]}, {e[0]+2L-e[1], e[2]}, {e[0]+3L-e[1]-e[2], e[3]}};
+#   p[] substitutes e[i] -> +generator (EJK arXiv:1703.00905 Thm 1.8).
+# Until 2026-11-26 this file used 3e0+6L-(e1+e2+e3+e4), centers without e0, and e[i] -> -generator; with the
+# centers free of e0 every class pushed to the P^2 bundle had e0-degree < 2, so all 235 values came out 0.
+HS=3*e0+6*L-(2*e1+e2+e3+e4)
 Cart={'C1':e1-e2,'C2':e3-e4,'C3':e4,'C4':e2-e3}
 B={'R':R,'H':H,**{f'E{i}':ee[i] for i in range(1,9)}}
-Centers={e1:[2*L,3*L,S], e2:[3*L-e1,e1], e3:[2*L-e1,e2], e4:[3*L-e1-e2,e3]}
+Centers={e1:[e0+2*L,e0+3*L,S], e2:[e0+3*L-e1,e1], e3:[e0+2*L-e1,e2], e4:[e0+3*L-e1-e2,e3]}
 def sub(expr,var,val): return F(expr).subs({var:F(val)})
 def blow(expr,E,Us):
     total=F(0); Us=[F(u) for u in Us]
@@ -33,7 +40,7 @@ def blow(expr,E,Us):
         c=F(1)
         for m,Um in enumerate(Us):
             if m!=j: c*=Um/(Um-Uj)
-        total+=sub(expr,E,-Uj)*c
+        total+=sub(expr,E,Uj)*c
     return F(total)
 def p0(expr):
     roots=[2*L,3*L,F(0)]; total=F(0)

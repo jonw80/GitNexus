@@ -1,0 +1,22 @@
+tau00 = (1.96937445097 + 1.50283927646j), tau01 = (2.04955317926 + 0.646038508241j), tau11 = (1.4198212717 + 0.493529504213j)  (T7 script: 1.96937445097+1.50283927646j, ...)
+successive minima of the invariant form: lambda1 = 1.2310734148701 at (-1, 2, -2, -1), lambda2 = 1.2310734148701 at (0, -1, 1, 1)
+candidate                           alpha^-1    distance from CODATA 2022
+N = 1/25, 1/lambda1       0.0324919696232906              -6.524e+9 sigma
+N = 1/25, 1/lambda2       0.0324919696232906              -6.524e+9 sigma
+N = 1, 1/lambda1           0.812299240582266              -6.487e+9 sigma
+N = 1, 1/lambda2           0.812299240582266              -6.487e+9 sigma
+N = 25, 1/lambda1           20.3074810145566              -5.559e+9 sigma
+N = 25, 1/lambda2           20.3074810145566              -5.559e+9 sigma
+O2  family size 276,822; within +-1 sigma (0.15 ppb): 0; within +-0.124 ppm: 1
+    density near 137: 11,600 per unit log -> expected by chance: 3.56e-06 within 1 sigma, 0.00 within 0.124 ppm
+O3  alpha^-1 = L + alpha^2/pi = 137.0359991917
+    vs CODATA 2022  137.035999177(21): 0.7 sigma
+    vs Rb 2020      137.035999206(11): -1.3 sigma
+    vs Cs 2018      137.035999046(27): 5.4 sigma
+
+post hoc two-step look-elsewhere (two_step_lookelsewhere.py):
+actual target 137.035999177: 1 pair(s) with positive correction
+random targets within 0.1% (positive corrections): P(at least one hit) = 0.0055, mean hits = 0.0055
+random targets within 0.1% (either sign): P(at least one hit) = 0.0090, mean hits = 0.0090
+
+closed form: lambda1 = lambda2 = (2/5) tan 72 deg = (2/5) sqrt(5 + 2 sqrt5), root of 125 x^4 - 200 x^2 + 16 (mpmath findpoly, 50 digits)

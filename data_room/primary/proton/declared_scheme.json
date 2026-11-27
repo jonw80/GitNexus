@@ -1,0 +1,8 @@
+{
+  "scheme": "MSbar_nf3",
+  "declared_by": "Jonathan J. Wilson (author)",
+  "declared_on": "2026-11-27",
+  "statement": "Lambda_QCD in m_p = c_p Lambda_QCD is the MS-bar Lambda parameter of QCD with N_f = 3 flavours, as averaged by FLAG.",
+  "sealed_before_comparison": false,
+  "note": "Chosen on 2026-11-27 from the four schemes of ugct_formal/proton_cp_published_lattice.py, after their comparison with M_Pl e^-44 was known (ugct_formal/PROTON_CP_PUBLISHED_LATTICE_2026-11-26.txt)."
+}

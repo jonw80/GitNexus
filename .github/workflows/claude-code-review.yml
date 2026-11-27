@@ -24,14 +24,24 @@ jobs:
       pull-requests: read
       issues: read
       id-token: write
+    # The review needs a CLAUDE_CODE_OAUTH_TOKEN repository secret (made with `claude setup-token`).
+    # Without that secret the job skips the review and passes instead of failing.
+    env:
+      HAS_CLAUDE_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
 
     steps:
+      - name: Review off (no CLAUDE_CODE_OAUTH_TOKEN secret)
+        if: env.HAS_CLAUDE_TOKEN != 'true'
+        run: echo "::notice::Claude Code Review skipped. Add a CLAUDE_CODE_OAUTH_TOKEN repository secret to turn it on."
+
       - name: Checkout repository
+        if: env.HAS_CLAUDE_TOKEN == 'true'
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
       - name: Run Claude Code Review
+        if: env.HAS_CLAUDE_TOKEN == 'true'
         id: claude-review
         uses: anthropics/claude-code-action@v1
         with:
